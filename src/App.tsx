@@ -5,7 +5,7 @@ import {
   Brain, Sparkles, CheckSquare, ListTodo, Upload, Bot, Sun, Moon, Settings,
   Plus, ChevronLeft, ChevronRight, Star, UploadCloud, Boxes, DollarSign, Clock,
   ListChecks, Paperclip, Play, Download, Pencil, Trash2, FileDown, Send, ArrowUpDown,
-  Compass, X, Check,
+  Compass, X, Check, LogOut,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -14,7 +14,8 @@ import {
 // 🔥 FIREBASE - imports
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from './firebase'
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, type User } from 'firebase/auth'
+import { db, storage, auth } from './firebase'
 
 /* ==================== TYPES ==================== */
 type Direction = 'long' | 'short'
@@ -211,6 +212,33 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 const useTheme = () => useContext(ThemeContext)
 
+/* ==================== AUTH CONTEXT ==================== */
+interface AuthCtx {
+  user: User | null
+  loading: boolean
+  login: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+}
+const AuthContext = createContext<AuthCtx | null>(null)
+function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, u => { setUser(u); setLoading(false) })
+    return () => unsub()
+  }, [])
+  const login = async (email: string, password: string) => { await signInWithEmailAndPassword(auth, email, password) }
+  const register = async (email: string, password: string) => { await createUserWithEmailAndPassword(auth, email, password) }
+  const logout = async () => { await signOut(auth) }
+  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+}
+function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider')
+  return ctx
+}
+
 /* ==================== APP DATA CONTEXT ==================== */
 const DEFAULT_SETTINGS: UserSettings = { theme: 'light', language: 'es', breakeven_threshold: 10, commission_nq: 4.0, commission_mnq: 1.04 }
 
@@ -226,139 +254,139 @@ interface AppDataCtx {
 }
 const AppDataContext = createContext<AppDataCtx | null>(null)
 
-function AppDataProvider({ children }: { children: React.ReactNode }) {
-  // Helper: limpia campos undefined que Firestore rechaza
+// 🔑 Ahora recibe el uid del usuario logueado y todo se guarda bajo users/{uid}/...
+function AppDataProvider({ children, uid }: { children: React.ReactNode; uid: string }) {
   const cleanData = (obj: any) => JSON.parse(JSON.stringify(obj))
 
   /* ---------- TRADES ---------- */
   const [trades, setTrades] = useState<Trade[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'trades'), orderBy('created_at', 'desc'))
+    const q = query(collection(db, 'users', uid, 'trades'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setTrades(snap.docs.map(d => d.data() as Trade)),
       err => console.error('Error al leer trades:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- STRATEGIES ---------- */
   const [strategies, setStrategies] = useState<Strategy[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'strategies'), orderBy('created_at', 'desc'))
+    const q = query(collection(db, 'users', uid, 'strategies'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setStrategies(snap.docs.map(d => d.data() as Strategy)),
       err => console.error('Error al leer strategies:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- CHECKLISTS ---------- */
   const [checklists, setChecklists] = useState<Checklist[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'checklists'), orderBy('created_at', 'desc'))
+    const q = query(collection(db, 'users', uid, 'checklists'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setChecklists(snap.docs.map(d => d.data() as Checklist)),
       err => console.error('Error al leer checklists:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- HABIT RULES ---------- */
   const [habitRules, setHabitRules] = useState<HabitRule[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'habitRules'), orderBy('created_at', 'asc'))
+    const q = query(collection(db, 'users', uid, 'habitRules'), orderBy('created_at', 'asc'))
     const unsub = onSnapshot(q, snap => setHabitRules(snap.docs.map(d => d.data() as HabitRule)),
       err => console.error('Error al leer habitRules:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- HABIT LOGS ---------- */
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([])
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'habitLogs'), snap => setHabitLogs(snap.docs.map(d => d.data() as HabitLog)),
+    const unsub = onSnapshot(collection(db, 'users', uid, 'habitLogs'), snap => setHabitLogs(snap.docs.map(d => d.data() as HabitLog)),
       err => console.error('Error al leer habitLogs:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- DAILY BIAS ---------- */
   const [dailyBias, setDailyBias] = useState<DailyBiasEntry[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'dailyBias'), orderBy('created_at', 'desc'))
+    const q = query(collection(db, 'users', uid, 'dailyBias'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setDailyBias(snap.docs.map(d => d.data() as DailyBiasEntry)),
       err => console.error('Error al leer dailyBias:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   /* ---------- WEEKLY OUTLOOKS ---------- */
   const [weeklyOutlooks, setWeeklyOutlooks] = useState<WeeklyOutlookEntry[]>([])
   useEffect(() => {
-    const q = query(collection(db, 'weeklyOutlooks'), orderBy('created_at', 'desc'))
+    const q = query(collection(db, 'users', uid, 'weeklyOutlooks'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setWeeklyOutlooks(snap.docs.map(d => d.data() as WeeklyOutlookEntry)),
       err => console.error('Error al leer weeklyOutlooks:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
-  /* ---------- SETTINGS (documento único) ---------- */
+  /* ---------- SETTINGS (documento único por usuario) ---------- */
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'main'), snap => {
+    const unsub = onSnapshot(doc(db, 'users', uid, 'settings', 'main'), snap => {
       if (snap.exists()) {
         setSettings(snap.data() as UserSettings)
       } else {
-        setDoc(doc(db, 'settings', 'main'), cleanData(DEFAULT_SETTINGS)).catch(err => console.error('Error al crear settings:', err))
+        setDoc(doc(db, 'users', uid, 'settings', 'main'), cleanData(DEFAULT_SETTINGS)).catch(err => console.error('Error al crear settings:', err))
       }
     }, err => console.error('Error al leer settings:', err))
     return () => unsub()
-  }, [])
+  }, [uid])
 
   const value: AppDataCtx = {
     trades, addTrade: (t) => {
-      setDoc(doc(db, 'trades', t.id), cleanData(t)).catch(err => console.error('Error al guardar trade:', err))
+      setDoc(doc(db, 'users', uid, 'trades', t.id), cleanData(t)).catch(err => console.error('Error al guardar trade:', err))
     },
 
     strategies, addStrategy: (s) => {
-      setDoc(doc(db, 'strategies', s.id), cleanData(s)).catch(err => console.error('Error al guardar strategy:', err))
+      setDoc(doc(db, 'users', uid, 'strategies', s.id), cleanData(s)).catch(err => console.error('Error al guardar strategy:', err))
     },
 
     checklists,
     addChecklist: (c) => {
-      setDoc(doc(db, 'checklists', c.id), cleanData(c)).catch(err => console.error('Error al guardar checklist:', err))
+      setDoc(doc(db, 'users', uid, 'checklists', c.id), cleanData(c)).catch(err => console.error('Error al guardar checklist:', err))
     },
     updateChecklist: (id, c) => {
       const existing = checklists.find(x => x.id === id)
       if (!existing) return
       const updated = { ...existing, ...c }
-      setDoc(doc(db, 'checklists', id), cleanData(updated)).catch(err => console.error('Error al actualizar checklist:', err))
+      setDoc(doc(db, 'users', uid, 'checklists', id), cleanData(updated)).catch(err => console.error('Error al actualizar checklist:', err))
     },
     deleteChecklist: (id) => {
-      deleteDoc(doc(db, 'checklists', id)).catch(err => console.error('Error al eliminar checklist:', err))
+      deleteDoc(doc(db, 'users', uid, 'checklists', id)).catch(err => console.error('Error al eliminar checklist:', err))
     },
 
     habitRules, addHabitRule: (r) => {
-      setDoc(doc(db, 'habitRules', r.id), cleanData(r)).catch(err => console.error('Error al guardar habitRule:', err))
+      setDoc(doc(db, 'users', uid, 'habitRules', r.id), cleanData(r)).catch(err => console.error('Error al guardar habitRule:', err))
     },
 
     habitLogs,
     toggleHabitLog: (ruleId, date) => {
       const existing = habitLogs.find(l => l.rule_id === ruleId && l.date === date)
       if (existing) {
-        setDoc(doc(db, 'habitLogs', existing.id), cleanData({ ...existing, checked: !existing.checked }))
+        setDoc(doc(db, 'users', uid, 'habitLogs', existing.id), cleanData({ ...existing, checked: !existing.checked }))
           .catch(err => console.error('Error al actualizar habitLog:', err))
       } else {
         const newLog: HabitLog = { id: crypto.randomUUID(), rule_id: ruleId, date, checked: true }
-        setDoc(doc(db, 'habitLogs', newLog.id), cleanData(newLog))
+        setDoc(doc(db, 'users', uid, 'habitLogs', newLog.id), cleanData(newLog))
           .catch(err => console.error('Error al crear habitLog:', err))
       }
     },
 
     dailyBias,
     upsertDailyBias: (entry) => {
-      setDoc(doc(db, 'dailyBias', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar dailyBias:', err))
+      setDoc(doc(db, 'users', uid, 'dailyBias', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar dailyBias:', err))
     },
 
     weeklyOutlooks,
     upsertWeeklyOutlook: (entry) => {
-      setDoc(doc(db, 'weeklyOutlooks', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar weeklyOutlook:', err))
+      setDoc(doc(db, 'users', uid, 'weeklyOutlooks', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar weeklyOutlook:', err))
     },
 
     settings,
     updateSettings: (s) => {
       const updated = { ...settings, ...s }
-      setDoc(doc(db, 'settings', 'main'), cleanData(updated)).catch(err => console.error('Error al guardar settings:', err))
+      setDoc(doc(db, 'users', uid, 'settings', 'main'), cleanData(updated)).catch(err => console.error('Error al guardar settings:', err))
     },
   }
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>
@@ -572,6 +600,7 @@ function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; ic
 }
 function Sidebar() {
   const { theme, toggleTheme } = useTheme()
+  const { logout, user } = useAuth()
   return (
     <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-bone-100/60 dark:bg-ink-800/60 border-r border-black/5 dark:border-white/5 backdrop-blur">
       <div className="px-5 pt-6 pb-5">
@@ -588,15 +617,19 @@ function Sidebar() {
           <div className="space-y-1">{toolsNav.map(item => <NavItem key={item.to} {...item} />)}</div>
         </div>
       </nav>
-      <div className="px-3 py-4 border-t border-black/5 dark:border-white/5 space-y-3">
+      <div className="px-3 py-4 border-t border-black/5 dark:border-white/5 space-y-1">
         <button onClick={toggleTheme} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm hover:bg-black/5 dark:hover:bg-white/5">
           {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           <span>{theme === 'light' ? 'Modo oscuro' : 'Modo claro'}</span>
         </button>
-        <div className="flex items-center justify-between px-2">
-          <NavLink to="/settings" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center font-semibold text-sm">JT</div>
-            <div className="leading-tight"><p className="text-sm font-medium">Trader</p><p className="text-[11px] text-ink-900/40 dark:text-bone-100/40">Cuenta fondeada</p></div>
+        <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-loss hover:bg-loss/10">
+          <LogOut size={18} />
+          <span>Cerrar sesión</span>
+        </button>
+        <div className="flex items-center justify-between px-2 pt-2">
+          <NavLink to="/settings" className="flex items-center gap-2 group min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-full bg-accent/20 text-accent flex items-center justify-center font-semibold text-sm">JT</div>
+            <div className="leading-tight min-w-0"><p className="text-sm font-medium truncate">{user?.email || 'Trader'}</p><p className="text-[11px] text-ink-900/40 dark:text-bone-100/40">Cuenta fondeada</p></div>
           </NavLink>
           <NavLink to="/settings" className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><Settings size={16} /></NavLink>
         </div>
@@ -833,8 +866,18 @@ function CalendarPage() {
 const BIAS_MARKETS: BiasMarket[] = ['Futuros', 'Forex', 'Acciones']
 const BIAS_DIRECTIONS: BiasDirection[] = ['Alcista', 'Bajista', 'Rango', 'Sin sesgo']
 
+async function uploadBiasFiles(files: File[], pathPrefix: string): Promise<string[]> {
+  return Promise.all(files.map(async (file, i) => {
+    const fileRef = ref(storage, `${pathPrefix}/${Date.now()}_${i}_${file.name}`)
+    await uploadBytes(fileRef, file)
+    return getDownloadURL(fileRef)
+  }))
+}
+
 function BiasPage() {
   const { dailyBias, upsertDailyBias, weeklyOutlooks, upsertWeeklyOutlook } = useAppData()
+  const { user } = useAuth()
+  const uid = user!.uid
   const [market, setMarket] = useState<BiasMarket>('Futuros')
   const [mode, setMode] = useState<'daily' | 'weekly'>('daily')
 
@@ -846,6 +889,8 @@ function BiasPage() {
   const [actualDesc, setActualDesc] = useState('')
   const [actualFiles, setActualFiles] = useState<File[]>([])
   const [outcome, setOutcome] = useState<BiasOutcome | ''>('')
+  const [savingExpected, setSavingExpected] = useState(false)
+  const [savingActual, setSavingActual] = useState(false)
 
   const currentEntry = useMemo(() => dailyBias.find(e => e.date === date && e.market === market), [dailyBias, date, market])
 
@@ -861,27 +906,49 @@ function BiasPage() {
     setExpectedFiles([]); setActualFiles([])
   }, [date, market]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveExpected = () => {
-    const base: DailyBiasEntry = currentEntry ? { ...currentEntry } : {
-      id: crypto.randomUUID(), date, market, expected_direction: direction, expected_description: expectedDesc,
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  const saveExpected = async () => {
+    setSavingExpected(true)
+    try {
+      const base: DailyBiasEntry = currentEntry ? { ...currentEntry } : {
+        id: crypto.randomUUID(), date, market, expected_direction: direction, expected_description: expectedDesc,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }
+      base.expected_direction = direction
+      base.expected_description = expectedDesc
+      if (expectedFiles.length) {
+        const urls = await uploadBiasFiles(expectedFiles, `users/${uid}/bias/${base.id}/expected`)
+        base.expected_screenshots = [...(base.expected_screenshots || []), ...urls]
+      }
+      base.updated_at = new Date().toISOString()
+      upsertDailyBias(base)
+      setExpectedFiles([])
+    } catch (err) {
+      console.error('Error al guardar expectativa:', err)
+    } finally {
+      setSavingExpected(false)
     }
-    base.expected_direction = direction
-    base.expected_description = expectedDesc
-    if (expectedFiles.length) base.expected_screenshots = [...(base.expected_screenshots || []), ...expectedFiles.map(f => URL.createObjectURL(f))]
-    base.updated_at = new Date().toISOString()
-    upsertDailyBias(base); setExpectedFiles([])
   }
-  const saveActual = () => {
-    const base: DailyBiasEntry = currentEntry ? { ...currentEntry } : {
-      id: crypto.randomUUID(), date, market, expected_direction: direction, expected_description: expectedDesc,
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  const saveActual = async () => {
+    setSavingActual(true)
+    try {
+      const base: DailyBiasEntry = currentEntry ? { ...currentEntry } : {
+        id: crypto.randomUUID(), date, market, expected_direction: direction, expected_description: expectedDesc,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }
+      base.actual_description = actualDesc
+      base.outcome = outcome || undefined
+      if (actualFiles.length) {
+        const urls = await uploadBiasFiles(actualFiles, `users/${uid}/bias/${base.id}/actual`)
+        base.actual_screenshots = [...(base.actual_screenshots || []), ...urls]
+      }
+      base.updated_at = new Date().toISOString()
+      upsertDailyBias(base)
+      setActualFiles([])
+    } catch (err) {
+      console.error('Error al guardar resultado:', err)
+    } finally {
+      setSavingActual(false)
     }
-    base.actual_description = actualDesc
-    base.outcome = outcome || undefined
-    if (actualFiles.length) base.actual_screenshots = [...(base.actual_screenshots || []), ...actualFiles.map(f => URL.createObjectURL(f))]
-    base.updated_at = new Date().toISOString()
-    upsertDailyBias(base); setActualFiles([])
   }
   const marketHistory = useMemo(() => dailyBias.filter(e => e.market === market).sort((a, b) => b.date.localeCompare(a.date)), [dailyBias, market])
 
@@ -889,6 +956,7 @@ function BiasPage() {
   const [weekStart, setWeekStart] = useState(() => toISODate(getSunday(new Date())))
   const [weekDesc, setWeekDesc] = useState('')
   const [weekFiles, setWeekFiles] = useState<File[]>([])
+  const [savingWeekly, setSavingWeekly] = useState(false)
   const currentWeekEntry = useMemo(() => weeklyOutlooks.find(e => e.week_start === weekStart && e.market === market), [weeklyOutlooks, weekStart, market])
 
   useEffect(() => {
@@ -896,13 +964,24 @@ function BiasPage() {
     setWeekFiles([])
   }, [weekStart, market]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveWeekly = () => {
-    const base: WeeklyOutlookEntry = currentWeekEntry ? { ...currentWeekEntry } : {
-      id: crypto.randomUUID(), week_start: weekStart, market, description: weekDesc, created_at: new Date().toISOString(),
+  const saveWeekly = async () => {
+    setSavingWeekly(true)
+    try {
+      const base: WeeklyOutlookEntry = currentWeekEntry ? { ...currentWeekEntry } : {
+        id: crypto.randomUUID(), week_start: weekStart, market, description: weekDesc, created_at: new Date().toISOString(),
+      }
+      base.description = weekDesc
+      if (weekFiles.length) {
+        const urls = await uploadBiasFiles(weekFiles, `users/${uid}/bias-weekly/${base.id}`)
+        base.screenshots = [...(base.screenshots || []), ...urls]
+      }
+      upsertWeeklyOutlook(base)
+      setWeekFiles([])
+    } catch (err) {
+      console.error('Error al guardar plan semanal:', err)
+    } finally {
+      setSavingWeekly(false)
     }
-    base.description = weekDesc
-    if (weekFiles.length) base.screenshots = [...(base.screenshots || []), ...weekFiles.map(f => URL.createObjectURL(f))]
-    upsertWeeklyOutlook(base); setWeekFiles([])
   }
   const weeklyHistory = useMemo(() => weeklyOutlooks.filter(e => e.market === market).sort((a, b) => b.week_start.localeCompare(a.week_start)), [weeklyOutlooks, market])
 
@@ -932,9 +1011,13 @@ function BiasPage() {
                   <Field label="Descripción / análisis"><textarea rows={4} value={expectedDesc} onChange={e => setExpectedDesc(e.target.value)} placeholder="¿Qué esperas hoy? Niveles, estructura, catalizadores..." className={inputCls} /></Field>
                   <ScreenshotUploader files={expectedFiles} onChange={setExpectedFiles} />
                   {currentEntry?.expected_screenshots && currentEntry.expected_screenshots.length > 0 && (
-                    <div className="flex gap-2 flex-wrap">{currentEntry.expected_screenshots.map((src, i) => <img key={i} src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" />)}</div>
+                    <div className="flex gap-2 flex-wrap">{currentEntry.expected_screenshots.map((src, i) => (
+                      <a key={i} href={src} target="_blank" rel="noreferrer"><img src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" /></a>
+                    ))}</div>
                   )}
-                  <button onClick={saveExpected} className="w-full px-4 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft">Guardar expectativa</button>
+                  <button onClick={saveExpected} disabled={savingExpected} className="w-full px-4 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft disabled:opacity-50">
+                    {savingExpected ? 'Guardando...' : 'Guardar expectativa'}
+                  </button>
                 </div>
               </div>
               <div>
@@ -947,9 +1030,13 @@ function BiasPage() {
                     <Field label="¿Qué pasó realmente?"><textarea rows={4} value={actualDesc} onChange={e => setActualDesc(e.target.value)} placeholder="Describe cómo se comportó el mercado frente a tu expectativa..." className={inputCls} /></Field>
                     <ScreenshotUploader files={actualFiles} onChange={setActualFiles} />
                     {currentEntry?.actual_screenshots && currentEntry.actual_screenshots.length > 0 && (
-                      <div className="flex gap-2 flex-wrap">{currentEntry.actual_screenshots.map((src, i) => <img key={i} src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" />)}</div>
+                      <div className="flex gap-2 flex-wrap">{currentEntry.actual_screenshots.map((src, i) => (
+                        <a key={i} href={src} target="_blank" rel="noreferrer"><img src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" /></a>
+                      ))}</div>
                     )}
-                    <button onClick={saveActual} className="w-full px-4 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">Guardar resultado</button>
+                    <button onClick={saveActual} disabled={savingActual} className="w-full px-4 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50">
+                      {savingActual ? 'Guardando...' : 'Guardar resultado'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -971,6 +1058,20 @@ function BiasPage() {
                     </div>
                     <p className="text-xs text-ink-900/50 dark:text-bone-100/50 line-clamp-1">{e.expected_description || 'Sin descripción'}</p>
                     {e.actual_description && <p className="text-xs text-ink-900/40 dark:text-bone-100/40 mt-1 line-clamp-1">→ {e.actual_description}</p>}
+                    {((e.expected_screenshots && e.expected_screenshots.length > 0) || (e.actual_screenshots && e.actual_screenshots.length > 0)) && (
+                      <div className="flex gap-2 flex-wrap mt-3" onClick={ev => ev.stopPropagation()}>
+                        {e.expected_screenshots?.map((src, i) => (
+                          <a key={`exp-${i}`} href={src} target="_blank" rel="noreferrer">
+                            <img src={src} className="w-14 h-14 object-cover rounded-lg border border-black/10 dark:border-white/10" title="Expectativa" />
+                          </a>
+                        ))}
+                        {e.actual_screenshots?.map((src, i) => (
+                          <a key={`act-${i}`} href={src} target="_blank" rel="noreferrer">
+                            <img src={src} className="w-14 h-14 object-cover rounded-lg border-2 border-accent/40" title="Resultado real" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -985,9 +1086,13 @@ function BiasPage() {
             <Field label={`Qué espero para ${market} esta semana`}><textarea rows={5} value={weekDesc} onChange={e => setWeekDesc(e.target.value)} placeholder="Sesgo semanal, niveles clave, eventos macro..." className={inputCls} /></Field>
             <div className="mt-4"><ScreenshotUploader files={weekFiles} onChange={setWeekFiles} /></div>
             {currentWeekEntry?.screenshots && currentWeekEntry.screenshots.length > 0 && (
-              <div className="flex gap-2 flex-wrap mt-3">{currentWeekEntry.screenshots.map((src, i) => <img key={i} src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" />)}</div>
+              <div className="flex gap-2 flex-wrap mt-3">{currentWeekEntry.screenshots.map((src, i) => (
+                <a key={i} href={src} target="_blank" rel="noreferrer"><img src={src} className="w-16 h-16 object-cover rounded-lg border border-black/10 dark:border-white/10" /></a>
+              ))}</div>
             )}
-            <button onClick={saveWeekly} className="mt-4 px-6 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft">Guardar plan semanal</button>
+            <button onClick={saveWeekly} disabled={savingWeekly} className="mt-4 px-6 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft disabled:opacity-50">
+              {savingWeekly ? 'Guardando...' : 'Guardar plan semanal'}
+            </button>
           </Card>
           <Card className="p-6">
             <h3 className="serif text-xl font-semibold mb-4">Histórico semanal — {market}</h3>
@@ -997,6 +1102,15 @@ function BiasPage() {
                   <div key={e.id} className="p-4 rounded-xl border border-black/5 dark:border-white/5 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]" onClick={() => setWeekStart(e.week_start)}>
                     <p className="text-sm font-medium mb-1">Semana del {new Date(e.week_start + 'T00:00:00').toLocaleDateString()}</p>
                     <p className="text-xs text-ink-900/50 dark:text-bone-100/50 line-clamp-2">{e.description}</p>
+                    {e.screenshots && e.screenshots.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mt-3" onClick={ev => ev.stopPropagation()}>
+                        {e.screenshots.map((src, i) => (
+                          <a key={i} href={src} target="_blank" rel="noreferrer">
+                            <img src={src} className="w-14 h-14 object-cover rounded-lg border border-black/10 dark:border-white/10" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1027,6 +1141,7 @@ function Block({ icon: Icon, title, children }: { icon: any; title: string; chil
 }
 function TradeForm({ onSaved }: { onSaved: () => void }) {
   const { strategies, addStrategy, checklists, addTrade } = useAppData()
+  const { user } = useAuth()
   const [form, setForm] = useState(emptyForm)
   const [useFreeSetup, setUseFreeSetup] = useState(false)
   const [newStrategyName, setNewStrategyName] = useState('')
@@ -1061,7 +1176,7 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
       try {
         screenshotUrls = await Promise.all(
           files.map(async (file, i) => {
-            const fileRef = ref(storage, `trades/${tradeId}/${Date.now()}_${i}_${file.name}`)
+            const fileRef = ref(storage, `users/${user!.uid}/trades/${tradeId}/${Date.now()}_${i}_${file.name}`)
             await uploadBytes(fileRef, file)
             return getDownloadURL(fileRef)
           })
@@ -1993,6 +2108,7 @@ function AIChatPage() {
 function SettingsPage() {
   const { settings, updateSettings } = useAppData()
   const { theme, toggleTheme } = useTheme()
+  const { user } = useAuth()
   const [form, setForm] = useState(settings)
   useEffect(() => { setForm(settings) }, [settings])
   const save = () => { updateSettings(form); if (form.theme !== theme) toggleTheme() }
@@ -2020,7 +2136,7 @@ function SettingsPage() {
       <Card className="p-6">
         <h3 className="serif text-xl font-semibold mb-4">Cuenta</h3>
         <div className="grid md:grid-cols-2 gap-4 text-sm">
-          <div><p className="text-ink-900/40 dark:text-bone-100/40 text-xs">Email</p><p>trader@tujournal.app</p></div>
+          <div><p className="text-ink-900/40 dark:text-bone-100/40 text-xs">Email</p><p>{user?.email}</p></div>
           <div><p className="text-ink-900/40 dark:text-bone-100/40 text-xs">Tipo de cuenta</p><p>Fondeada</p></div>
         </div>
       </Card>
@@ -2028,32 +2144,124 @@ function SettingsPage() {
   )
 }
 
+/* ==================== LOGIN PAGE ==================== */
+function LoginPage() {
+  const { login, register } = useAuth()
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      if (mode === 'login') {
+        await login(email, password)
+      } else {
+        await register(email, password)
+      }
+    } catch (err: any) {
+      const messages: Record<string, string> = {
+        'auth/invalid-credential': 'Email o contraseña incorrectos.',
+        'auth/user-not-found': 'No existe una cuenta con ese email.',
+        'auth/wrong-password': 'Contraseña incorrecta.',
+        'auth/email-already-in-use': 'Ya existe una cuenta con ese email.',
+        'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+        'auth/invalid-email': 'El email no es válido.',
+      }
+      setError(messages[err.code] || 'Ha ocurrido un error. Inténtalo de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-bone-50 dark:bg-ink-900 p-4">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center text-white font-serif font-bold text-2xl mb-3">t</div>
+          <h1 className="serif text-2xl font-semibold">tujournal</h1>
+          <p className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mt-1">Cockpit de Rendimiento</p>
+        </div>
+        <Card className="p-6 md:p-8">
+          <h2 className="serif text-xl font-semibold mb-1">{mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}</h2>
+          <p className="text-sm text-ink-900/50 dark:text-bone-100/50 mb-6">
+            {mode === 'login' ? 'Accede a tu diario de trading.' : 'Regístrate para empezar a usar tujournal.'}
+          </p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Field label="Email">
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="tucorreo@ejemplo.com" className={inputCls} />
+            </Field>
+            <Field label="Contraseña">
+              <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={inputCls} />
+            </Field>
+            {error && <p className="text-xs text-loss">{error}</p>}
+            <button type="submit" disabled={loading} className="w-full px-6 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light disabled:opacity-50">
+              {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+            </button>
+          </form>
+          <p className="text-xs text-center text-ink-900/50 dark:text-bone-100/50 mt-6">
+            {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+            <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }} className="text-accent font-medium hover:underline">
+              {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
+            </button>
+          </p>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+/* ==================== AUTH GATE ==================== */
+function AuthGate() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bone-50 dark:bg-ink-900">
+        <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Cargando...</p>
+      </div>
+    )
+  }
+
+  if (!user) return <LoginPage />
+
+  return (
+    <AppDataProvider uid={user.uid}>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<OverviewPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="bias" element={<BiasPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="trades" element={<TradesPage />} />
+            <Route path="strategies" element={<StrategiesPage />} />
+            <Route path="weekly-review" element={<WeeklyReviewPage />} />
+            <Route path="mindset" element={<MindsetPage />} />
+            <Route path="zen" element={<ZenPage />} />
+            <Route path="habits" element={<HabitsPage />} />
+            <Route path="checklists" element={<ChecklistsPage />} />
+            <Route path="import-export" element={<ImportExportPage />} />
+            <Route path="ai" element={<AIChatPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppDataProvider>
+  )
+}
+
 /* ==================== APP ROOT ==================== */
 export default function App() {
   return (
     <ThemeProvider>
-      <AppDataProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route index element={<OverviewPage />} />
-              <Route path="calendar" element={<CalendarPage />} />
-              <Route path="bias" element={<BiasPage />} />
-              <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="trades" element={<TradesPage />} />
-              <Route path="strategies" element={<StrategiesPage />} />
-              <Route path="weekly-review" element={<WeeklyReviewPage />} />
-              <Route path="mindset" element={<MindsetPage />} />
-              <Route path="zen" element={<ZenPage />} />
-              <Route path="habits" element={<HabitsPage />} />
-              <Route path="checklists" element={<ChecklistsPage />} />
-              <Route path="import-export" element={<ImportExportPage />} />
-              <Route path="ai" element={<AIChatPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </AppDataProvider>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
     </ThemeProvider>
   )
 }
