@@ -51,13 +51,13 @@ export function useAuth() {
 const DEFAULT_SETTINGS: UserSettings = { theme: 'light', language: 'es', breakeven_threshold: 10, commission_nq: 4.0, commission_mnq: 1.04 }
 
 interface AppDataCtx {
-  trades: Trade[]; addTrade: (t: Trade) => void
+  trades: Trade[]; addTrade: (t: Trade) => void; updateTrade: (id: string, t: Partial<Trade>) => void; deleteTrade: (id: string) => void
   strategies: Strategy[]; addStrategy: (s: Strategy) => void
   checklists: Checklist[]; addChecklist: (c: Checklist) => void; updateChecklist: (id: string, c: Partial<Checklist>) => void; deleteChecklist: (id: string) => void
   habitRules: HabitRule[]; addHabitRule: (r: HabitRule) => void
   habitLogs: HabitLog[]; toggleHabitLog: (ruleId: string, date: string) => void
-  dailyBias: DailyBiasEntry[]; upsertDailyBias: (entry: DailyBiasEntry) => void
-  weeklyOutlooks: WeeklyOutlookEntry[]; upsertWeeklyOutlook: (entry: WeeklyOutlookEntry) => void
+  dailyBias: DailyBiasEntry[]; upsertDailyBias: (entry: DailyBiasEntry) => void; deleteDailyBias: (id: string) => void
+  weeklyOutlooks: WeeklyOutlookEntry[]; upsertWeeklyOutlook: (entry: WeeklyOutlookEntry) => void; deleteWeeklyOutlook: (id: string) => void
   settings: UserSettings; updateSettings: (s: Partial<UserSettings>) => void
 }
 const AppDataContext = createContext<AppDataCtx | null>(null)
@@ -133,8 +133,18 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
   }, [uid])
 
   const value: AppDataCtx = {
-    trades, addTrade: (t) => {
+    trades,
+    addTrade: (t) => {
       setDoc(doc(db, 'users', uid, 'trades', t.id), cleanData(t)).catch(err => console.error('Error al guardar trade:', err))
+    },
+    updateTrade: (id, t) => {
+      const existing = trades.find(x => x.id === id)
+      if (!existing) return
+      const updated = { ...existing, ...t }
+      setDoc(doc(db, 'users', uid, 'trades', id), cleanData(updated)).catch(err => console.error('Error al actualizar trade:', err))
+    },
+    deleteTrade: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'trades', id)).catch(err => console.error('Error al eliminar trade:', err))
     },
 
     strategies, addStrategy: (s) => {
@@ -176,10 +186,16 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     upsertDailyBias: (entry) => {
       setDoc(doc(db, 'users', uid, 'dailyBias', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar dailyBias:', err))
     },
+    deleteDailyBias: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'dailyBias', id)).catch(err => console.error('Error al eliminar dailyBias:', err))
+    },
 
     weeklyOutlooks,
     upsertWeeklyOutlook: (entry) => {
       setDoc(doc(db, 'users', uid, 'weeklyOutlooks', entry.id), cleanData(entry)).catch(err => console.error('Error al guardar weeklyOutlook:', err))
+    },
+    deleteWeeklyOutlook: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'weeklyOutlooks', id)).catch(err => console.error('Error al eliminar weeklyOutlook:', err))
     },
 
     settings,
