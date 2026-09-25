@@ -4,12 +4,14 @@ import { AppLayout } from './Sidebar'
 import LoginPage from '../pages/LoginPage'
 import OverviewPage from '../pages/OverviewPage'
 import CalendarPage from '../pages/CalendarPage'
+import AccountsPage from '../pages/AccountsPage'
 import BiasPage from '../pages/BiasPage'
 import TradesPage from '../pages/TradesPage'
 import AnalyticsPage from '../pages/AnalyticsPage'
 import StrategiesPage from '../pages/StrategiesPage'
 import WeeklyReviewPage from '../pages/WeeklyReviewPage'
 import MindsetPage from '../pages/MindsetPage'
+import MindsetCalendarPage from '../pages/MindsetCalendarPage'
 import ZenPage from '../pages/ZenPage'
 import HabitsPage from '../pages/HabitsPage'
 import ChecklistsPage from '../pages/ChecklistsPage'
@@ -37,12 +39,14 @@ export function AuthGate() {
           <Route element={<AppLayout />}>
             <Route index element={<OverviewPage />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="accounts" element={<AccountsPage />} />
             <Route path="bias" element={<BiasPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="trades" element={<TradesPage />} />
             <Route path="strategies" element={<StrategiesPage />} />
             <Route path="weekly-review" element={<WeeklyReviewPage />} />
             <Route path="mindset" element={<MindsetPage />} />
+            <Route path="mindset-calendar" element={<MindsetCalendarPage />} />
             <Route path="zen" element={<ZenPage />} />
             <Route path="habits" element={<HabitsPage />} />
             <Route path="checklists" element={<ChecklistsPage />} />

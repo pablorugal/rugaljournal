@@ -62,7 +62,7 @@ export function Gauge({ score }: { score: number }) {
   const radius = 80
   const circumference = Math.PI * radius
   const offset = circumference * (1 - clamped / 100)
-  const color = clamped >= 70 ? '#16A34A' : clamped >= 40 ? '#D97706' : '#DC2626'
+  const color = clamped >= 70 ? '#171717' : clamped >= 40 ? '#78716C' : '#D6D3D1'
   return (
     <div className="relative flex flex-col items-center">
       <svg width="200" height="110" viewBox="0 0 200 110">
@@ -154,7 +154,7 @@ export function EmotionSliderStyled({ value, onChange }: { value: number; onChan
   const pct = ((value - 1) / 9) * 100
   const zone = value <= 4 ? 'risk' : value <= 6 ? 'caution' : 'optimal'
   const zoneLabel = zone === 'optimal' ? 'Condiciones óptimas' : zone === 'caution' ? 'Operable con precaución' : 'Alto riesgo'
-  const zoneColor = zone === 'optimal' ? 'text-profit' : zone === 'caution' ? 'text-amber-500' : 'text-loss'
+  const zoneColor = zone === 'optimal' ? 'text-profit' : zone === 'caution' ? 'text-ink-900/60 dark:text-bone-100/60' : 'text-loss'
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -174,7 +174,6 @@ export function EmotionSliderStyled({ value, onChange }: { value: number; onChan
   )
 }
 
-/* ==================== BLOCK (secciones con línea divisoria) ==================== */
 export function Block({ icon: Icon, title, children, first = false }: { icon: any; title: string; children: React.ReactNode; first?: boolean }) {
   return (
     <div className={first ? '' : 'border-t border-black/10 dark:border-white/10 pt-8'}>

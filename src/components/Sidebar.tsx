@@ -3,13 +3,14 @@ import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, CalendarDays, LineChart, Repeat, BookOpen, ClipboardList,
   Brain, Sparkles, CheckSquare, ListTodo, Upload, Bot, Sun, Moon, Settings, LogOut,
-  Compass,
+  Compass, Wallet,
 } from 'lucide-react'
 import { useTheme, useAuth } from '../contexts'
 
 const mainNav = [
   { to: '/', label: 'Panel', icon: LayoutDashboard, end: true },
   { to: '/calendar', label: 'Calendario', icon: CalendarDays },
+  { to: '/accounts', label: 'Cuentas', icon: Wallet },
   { to: '/bias', label: 'Bias Diario', icon: Compass },
   { to: '/analytics', label: 'Analítica', icon: LineChart },
   { to: '/trades', label: 'Operaciones', icon: Repeat },

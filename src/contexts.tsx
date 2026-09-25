@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { db, auth } from './firebase'
 import type {
   Trade, Strategy, Checklist, HabitRule, HabitLog,
-  DailyBiasEntry, WeeklyOutlookEntry, UserSettings,
+  DailyBiasEntry, WeeklyOutlookEntry, UserSettings, Conversation, MindsetEntry, TradingAccount,
 } from './types'
 
 /* ==================== THEME CONTEXT ==================== */
@@ -58,7 +58,10 @@ interface AppDataCtx {
   habitLogs: HabitLog[]; toggleHabitLog: (ruleId: string, date: string) => void
   dailyBias: DailyBiasEntry[]; upsertDailyBias: (entry: DailyBiasEntry) => void; deleteDailyBias: (id: string) => void
   weeklyOutlooks: WeeklyOutlookEntry[]; upsertWeeklyOutlook: (entry: WeeklyOutlookEntry) => void; deleteWeeklyOutlook: (id: string) => void
+  mindsetEntries: MindsetEntry[]; upsertMindsetEntry: (entry: Partial<MindsetEntry> & { date: string }) => void; deleteMindsetEntry: (id: string) => void
+  accounts: TradingAccount[]; upsertAccount: (a: TradingAccount) => void; deleteAccount: (id: string) => void
   settings: UserSettings; updateSettings: (s: Partial<UserSettings>) => void
+  conversations: Conversation[]; upsertConversation: (c: Conversation) => void; deleteConversation: (id: string) => void
 }
 const AppDataContext = createContext<AppDataCtx | null>(null)
 
@@ -117,6 +120,30 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     const q = query(collection(db, 'users', uid, 'weeklyOutlooks'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setWeeklyOutlooks(snap.docs.map(d => d.data() as WeeklyOutlookEntry)),
       err => console.error('Error al leer weeklyOutlooks:', err))
+    return () => unsub()
+  }, [uid])
+
+  const [mindsetEntries, setMindsetEntries] = useState<MindsetEntry[]>([])
+  useEffect(() => {
+    const q = query(collection(db, 'users', uid, 'mindsetEntries'), orderBy('date', 'desc'))
+    const unsub = onSnapshot(q, snap => setMindsetEntries(snap.docs.map(d => d.data() as MindsetEntry)),
+      err => console.error('Error al leer mindsetEntries:', err))
+    return () => unsub()
+  }, [uid])
+
+  const [accounts, setAccounts] = useState<TradingAccount[]>([])
+  useEffect(() => {
+    const q = query(collection(db, 'users', uid, 'accounts'), orderBy('created_at', 'desc'))
+    const unsub = onSnapshot(q, snap => setAccounts(snap.docs.map(d => d.data() as TradingAccount)),
+      err => console.error('Error al leer accounts:', err))
+    return () => unsub()
+  }, [uid])
+
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  useEffect(() => {
+    const q = query(collection(db, 'users', uid, 'conversations'), orderBy('updated_at', 'desc'))
+    const unsub = onSnapshot(q, snap => setConversations(snap.docs.map(d => d.data() as Conversation)),
+      err => console.error('Error al leer conversations:', err))
     return () => unsub()
   }, [uid])
 
@@ -196,6 +223,35 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     },
     deleteWeeklyOutlook: (id) => {
       deleteDoc(doc(db, 'users', uid, 'weeklyOutlooks', id)).catch(err => console.error('Error al eliminar weeklyOutlook:', err))
+    },
+
+    mindsetEntries,
+    upsertMindsetEntry: (entry) => {
+      const existing = mindsetEntries.find(e => e.date === entry.date)
+      const now = new Date().toISOString()
+      const merged: MindsetEntry = existing
+        ? { ...existing, ...entry, updated_at: now }
+        : ({ id: entry.date, created_at: now, updated_at: now, ...entry } as MindsetEntry)
+      setDoc(doc(db, 'users', uid, 'mindsetEntries', merged.id), cleanData(merged)).catch(err => console.error('Error al guardar mindsetEntry:', err))
+    },
+    deleteMindsetEntry: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'mindsetEntries', id)).catch(err => console.error('Error al eliminar mindsetEntry:', err))
+    },
+
+    accounts,
+    upsertAccount: (a) => {
+      setDoc(doc(db, 'users', uid, 'accounts', a.id), cleanData(a)).catch(err => console.error('Error al guardar account:', err))
+    },
+    deleteAccount: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'accounts', id)).catch(err => console.error('Error al eliminar account:', err))
+    },
+
+    conversations,
+    upsertConversation: (c) => {
+      setDoc(doc(db, 'users', uid, 'conversations', c.id), cleanData(c)).catch(err => console.error('Error al guardar conversation:', err))
+    },
+    deleteConversation: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'conversations', id)).catch(err => console.error('Error al eliminar conversation:', err))
     },
 
     settings,

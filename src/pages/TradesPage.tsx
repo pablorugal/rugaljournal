@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react'
 import {
   Boxes, DollarSign, Clock, BookOpen, ListChecks, Paperclip, UploadCloud, Star, ArrowUpDown,
-  Pencil, Trash2, AlertTriangle,
+  Pencil, Trash2, AlertTriangle, Wallet,
 } from 'lucide-react'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase'
 import { useAppData, useAuth } from '../contexts'
 import { fmt } from '../utils'
-import { getNetPnl, classifyTrade } from '../calculations'
+import { getNetPnl, classifyTrade, calculateAutoPnl } from '../calculations'
 import type { Trade, Direction, InstrumentType } from '../types'
 import {
   Card, SectionHeader, PillTabs, Field, inputCls, DirectionToggle, Modal, StatCard, ScreenshotUploader,
@@ -18,7 +18,7 @@ import {
 const emptyForm = {
   symbol: '', instrument_type: 'Futuros' as InstrumentType, direction: 'long' as Direction,
   entry_price: '', exit_price: '', position_size: '', pnl: '', risk_amount: '', stop_loss: '', take_profit: '',
-  entry_datetime: '', exit_datetime: '', strategy_id: '', custom_setup: '', checklist_id: '', rating: 0, notes: '',
+  entry_datetime: '', exit_datetime: '', strategy_id: '', custom_setup: '', checklist_id: '', account_id: '', rating: 0, notes: '',
 }
 function tradeToForm(t: Trade) {
   return {
@@ -37,14 +37,17 @@ function tradeToForm(t: Trade) {
     strategy_id: t.strategy_id || '',
     custom_setup: t.custom_setup || '',
     checklist_id: t.checklist_id || '',
+    account_id: t.account_id || '',
     rating: t.rating || 0,
     notes: t.notes || '',
   }
 }
 
+const INSTRUMENT_OPTIONS: InstrumentType[] = ['Futuros', 'Opciones', 'Forex', 'Acciones', 'Crypto']
+
 /* ==================== TRADE FORM (Nuevo Trade) ==================== */
 function TradeForm({ onSaved }: { onSaved: () => void }) {
-  const { strategies, addStrategy, checklists, addTrade } = useAppData()
+  const { strategies, addStrategy, checklists, addTrade, accounts } = useAppData()
   const { user } = useAuth()
   const [form, setForm] = useState(emptyForm)
   const [useFreeSetup, setUseFreeSetup] = useState(false)
@@ -70,6 +73,17 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
     addStrategy(s); setForm(prev => ({ ...prev, strategy_id: s.id })); setNewStrategyName(''); setShowNewStrategy(false)
   }
 
+  const relevantAccounts = useMemo(() => accounts.filter(a => a.instrument_type === form.instrument_type), [accounts, form.instrument_type])
+
+  const autoPnl = useMemo(() => calculateAutoPnl({
+    instrument_type: form.instrument_type,
+    symbol: form.symbol,
+    direction: form.direction,
+    entry_price: Number(form.entry_price) || 0,
+    exit_price: Number(form.exit_price) || 0,
+    position_size: Number(form.position_size) || 0,
+  }), [form.instrument_type, form.symbol, form.direction, form.entry_price, form.exit_price, form.position_size])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const tradeId = crypto.randomUUID()
@@ -92,13 +106,16 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
       }
     }
 
+    const finalPnl = form.pnl.trim() !== '' ? Number(form.pnl) : autoPnl
+
     const trade: Trade = {
       id: tradeId, symbol: form.symbol.toUpperCase(), instrument_type: form.instrument_type, direction: form.direction,
       entry_price: Number(form.entry_price) || 0, exit_price: Number(form.exit_price) || 0, position_size: Number(form.position_size) || 0,
-      pnl: Number(form.pnl) || 0, risk_amount: Number(form.risk_amount) || undefined, stop_loss: Number(form.stop_loss) || undefined,
+      pnl: finalPnl, risk_amount: Number(form.risk_amount) || undefined, stop_loss: Number(form.stop_loss) || undefined,
       take_profit: Number(form.take_profit) || undefined, entry_datetime: form.entry_datetime || new Date().toISOString(),
       exit_datetime: form.exit_datetime || new Date().toISOString(), strategy_id: useFreeSetup ? null : (form.strategy_id || null),
-      custom_setup: useFreeSetup ? form.custom_setup : undefined, checklist_id: form.checklist_id || null, rating: form.rating,
+      custom_setup: useFreeSetup ? form.custom_setup : undefined, checklist_id: form.checklist_id || null,
+      account_id: form.account_id || null, rating: form.rating,
       screenshots: screenshotUrls, notes: form.notes, created_at: new Date().toISOString(),
     }
     addTrade(trade); clearForm(); onSaved()
@@ -114,10 +131,20 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
 
       <form onSubmit={handleSubmit} className="space-y-10">
         <Block icon={Boxes} title="Instrumento" first>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-4 gap-4">
             <Field label="Símbolo"><input value={form.symbol} onChange={set('symbol')} placeholder="NQ, MNQ, ES, EURUSD..." className={inputCls} /></Field>
-            <Field label="Tipo"><select value={form.instrument_type} onChange={set('instrument_type')} className={inputCls}><option>Futuros</option><option>Opciones</option><option>Forex</option><option>Acciones</option></select></Field>
+            <Field label="Tipo">
+              <select value={form.instrument_type} onChange={set('instrument_type')} className={inputCls}>
+                {INSTRUMENT_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </Field>
             <Field label="Dirección"><DirectionToggle value={form.direction} onChange={v => setForm(p => ({ ...p, direction: v }))} /></Field>
+            <Field label="Cuenta (opcional)">
+              <select value={form.account_id} onChange={set('account_id')} className={inputCls}>
+                <option value="">Sin cuenta asignada</option>
+                {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </Field>
           </div>
         </Block>
         <Block icon={DollarSign} title="Precios y Resultado">
@@ -125,7 +152,12 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
             <Field label="Precio Entrada"><input type="number" step="0.01" value={form.entry_price} onChange={set('entry_price')} className={inputCls} /></Field>
             <Field label="Precio Salida"><input type="number" step="0.01" value={form.exit_price} onChange={set('exit_price')} className={inputCls} /></Field>
             <Field label="Tamaño Posición (contratos)"><input type="number" value={form.position_size} onChange={set('position_size')} className={inputCls} /></Field>
-            <Field label="P&L $ (manual)"><input type="number" step="0.01" placeholder="+250 / -120" value={form.pnl} onChange={set('pnl')} className={inputCls} /></Field>
+            <Field label="P&L $ (opcional)">
+              <input type="number" step="0.01" placeholder={`Auto: ${fmt(autoPnl)}`} value={form.pnl} onChange={set('pnl')} className={inputCls} />
+              <p className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mt-1">
+                Vacío = cálculo automático (<strong>{fmt(autoPnl)}</strong>). Rellénalo solo si quieres forzar otro valor.
+              </p>
+            </Field>
             <Field label="Riesgo $"><input type="number" step="0.01" value={form.risk_amount} onChange={set('risk_amount')} className={inputCls} /></Field>
             <Field label="Stop Loss"><input type="number" step="0.01" value={form.stop_loss} onChange={set('stop_loss')} className={inputCls} /></Field>
             <Field label="Take Profit"><input type="number" step="0.01" value={form.take_profit} onChange={set('take_profit')} className={inputCls} /></Field>
@@ -212,7 +244,7 @@ function TradeForm({ onSaved }: { onSaved: () => void }) {
 
 /* ==================== EDIT TRADE FORM (dentro del modal) ==================== */
 function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: () => void; onSaved: (t: Trade) => void }) {
-  const { strategies, addStrategy, checklists, updateTrade } = useAppData()
+  const { strategies, addStrategy, checklists, updateTrade, accounts } = useAppData()
   const { user } = useAuth()
   const [form, setForm] = useState(tradeToForm(trade))
   const [useFreeSetup, setUseFreeSetup] = useState(!trade.strategy_id && !!trade.custom_setup)
@@ -235,6 +267,17 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
     addStrategy(s); setForm(prev => ({ ...prev, strategy_id: s.id })); setNewStrategyName(''); setShowNewStrategy(false)
   }
 
+  const relevantAccounts = useMemo(() => accounts.filter(a => a.instrument_type === form.instrument_type), [accounts, form.instrument_type])
+
+  const autoPnl = useMemo(() => calculateAutoPnl({
+    instrument_type: form.instrument_type,
+    symbol: form.symbol,
+    direction: form.direction,
+    entry_price: Number(form.entry_price) || 0,
+    exit_price: Number(form.exit_price) || 0,
+    position_size: Number(form.position_size) || 0,
+  }), [form.instrument_type, form.symbol, form.direction, form.entry_price, form.exit_price, form.position_size])
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     let screenshotUrls = [...existingScreenshots]
@@ -256,6 +299,8 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
       }
     }
 
+    const finalPnl = form.pnl.trim() !== '' ? Number(form.pnl) : autoPnl
+
     const updated: Partial<Trade> = {
       symbol: form.symbol.toUpperCase(),
       instrument_type: form.instrument_type,
@@ -263,7 +308,7 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
       entry_price: Number(form.entry_price) || 0,
       exit_price: Number(form.exit_price) || 0,
       position_size: Number(form.position_size) || 0,
-      pnl: Number(form.pnl) || 0,
+      pnl: finalPnl,
       risk_amount: form.risk_amount !== '' ? Number(form.risk_amount) : undefined,
       stop_loss: form.stop_loss !== '' ? Number(form.stop_loss) : undefined,
       take_profit: form.take_profit !== '' ? Number(form.take_profit) : undefined,
@@ -272,6 +317,7 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
       strategy_id: useFreeSetup ? null : (form.strategy_id || null),
       custom_setup: useFreeSetup ? form.custom_setup : undefined,
       checklist_id: form.checklist_id || null,
+      account_id: form.account_id || null,
       rating: form.rating,
       screenshots: screenshotUrls,
       notes: form.notes,
@@ -286,10 +332,20 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
       <p className="text-sm text-ink-900/50 dark:text-bone-100/50 -mt-6 mb-2">Modifica los datos y guarda los cambios</p>
 
       <Block icon={Boxes} title="Instrumento" first>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <Field label="Símbolo"><input value={form.symbol} onChange={set('symbol')} className={inputCls} /></Field>
-          <Field label="Tipo"><select value={form.instrument_type} onChange={set('instrument_type')} className={inputCls}><option>Futuros</option><option>Opciones</option><option>Forex</option><option>Acciones</option></select></Field>
+          <Field label="Tipo">
+            <select value={form.instrument_type} onChange={set('instrument_type')} className={inputCls}>
+              {INSTRUMENT_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </Field>
           <Field label="Dirección"><DirectionToggle value={form.direction} onChange={v => setForm(p => ({ ...p, direction: v }))} /></Field>
+          <Field label="Cuenta (opcional)">
+            <select value={form.account_id} onChange={set('account_id')} className={inputCls}>
+              <option value="">Sin cuenta asignada</option>
+              {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </Field>
         </div>
       </Block>
 
@@ -298,7 +354,10 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
           <Field label="Precio Entrada"><input type="number" step="0.01" value={form.entry_price} onChange={set('entry_price')} className={inputCls} /></Field>
           <Field label="Precio Salida"><input type="number" step="0.01" value={form.exit_price} onChange={set('exit_price')} className={inputCls} /></Field>
           <Field label="Tamaño Posición"><input type="number" value={form.position_size} onChange={set('position_size')} className={inputCls} /></Field>
-          <Field label="P&L $ (manual)"><input type="number" step="0.01" value={form.pnl} onChange={set('pnl')} className={inputCls} /></Field>
+          <Field label="P&L $ (opcional)">
+            <input type="number" step="0.01" placeholder={`Auto: ${fmt(autoPnl)}`} value={form.pnl} onChange={set('pnl')} className={inputCls} />
+            <p className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mt-1">Auto: <strong>{fmt(autoPnl)}</strong></p>
+          </Field>
           <Field label="Riesgo $"><input type="number" step="0.01" value={form.risk_amount} onChange={set('risk_amount')} className={inputCls} /></Field>
           <Field label="Stop Loss"><input type="number" step="0.01" value={form.stop_loss} onChange={set('stop_loss')} className={inputCls} /></Field>
           <Field label="Take Profit"><input type="number" step="0.01" value={form.take_profit} onChange={set('take_profit')} className={inputCls} /></Field>
@@ -391,7 +450,7 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
 
 /* ==================== TRADE HISTORY ==================== */
 function TradeHistory() {
-  const { trades, strategies, settings, deleteTrade } = useAppData()
+  const { trades, strategies, settings, deleteTrade, accounts } = useAppData()
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<'exit_datetime' | 'symbol' | 'pnl'>('exit_datetime')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -422,6 +481,7 @@ function TradeHistory() {
   }
 
   const selectedStrat = selectedTrade ? strategies.find(s => s.id === selectedTrade.strategy_id) : null
+  const selectedAccountName = selectedTrade ? accounts.find(a => a.id === selectedTrade.account_id)?.name : null
   const selectedNet = selectedTrade ? getNetPnl(selectedTrade, settings) : 0
   const selectedCls = selectedTrade ? classifyTrade(selectedTrade, settings) : null
 
@@ -438,7 +498,7 @@ function TradeHistory() {
               <tr className="text-left text-xs uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 border-b border-black/5 dark:border-white/5">
                 <th className="py-3 cursor-pointer" onClick={() => toggleSort('exit_datetime')}><span className="flex items-center gap-1">Fecha <ArrowUpDown size={12} /></span></th>
                 <th className="py-3 cursor-pointer" onClick={() => toggleSort('symbol')}><span className="flex items-center gap-1">Símbolo <ArrowUpDown size={12} /></span></th>
-                <th className="py-3">Dirección</th><th className="py-3">Estrategia</th><th className="py-3">Rating</th>
+                <th className="py-3">Dirección</th><th className="py-3">Cuenta</th><th className="py-3">Estrategia</th><th className="py-3">Rating</th>
                 <th className="py-3 cursor-pointer" onClick={() => toggleSort('pnl')}><span className="flex items-center gap-1">P&L Bruto <ArrowUpDown size={12} /></span></th>
                 <th className="py-3">P&L Neto</th><th className="py-3">Resultado</th>
               </tr>
@@ -446,6 +506,7 @@ function TradeHistory() {
             <tbody>
               {filtered.map(t => {
                 const strat = strategies.find(s => s.id === t.strategy_id)
+                const accName = accounts.find(a => a.id === t.account_id)?.name
                 const net = getNetPnl(t, settings)
                 const cls = classifyTrade(t, settings)
                 return (
@@ -453,6 +514,7 @@ function TradeHistory() {
                     <td className="py-3">{new Date(t.exit_datetime).toLocaleString()}</td>
                     <td className="py-3 font-medium">{t.symbol}</td>
                     <td className="py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded ${t.direction === 'long' ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss'}`}>{t.direction.toUpperCase()}</span></td>
+                    <td className="py-3 text-xs text-ink-900/50 dark:text-bone-100/50">{accName || '—'}</td>
                     <td className="py-3">{strat?.name || t.custom_setup || '—'}</td>
                     <td className="py-3">{t.rating ? `${t.rating}/10` : '—'}</td>
                     <td className={`py-3 font-medium ${t.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(t.pnl)}</td>
@@ -500,9 +562,15 @@ function TradeHistory() {
               <StatCard label="Resultado" value={selectedCls === 'be' ? 'Breakeven' : selectedCls === 'win' ? 'Ganadora' : 'Perdedora'} positive={selectedCls === 'win' ? true : selectedCls === 'loss' ? false : null} />
             </div>
 
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-1">Estrategia</p>
-              <p className="text-sm">{selectedStrat?.name || selectedTrade.custom_setup || 'Sin etiquetar'}</p>
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-1">Estrategia</p>
+                <p className="text-sm">{selectedStrat?.name || selectedTrade.custom_setup || 'Sin etiquetar'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-1 flex items-center gap-1"><Wallet size={11} /> Cuenta</p>
+                <p className="text-sm">{selectedAccountName || 'Sin cuenta asignada'}</p>
+              </div>
             </div>
 
             {selectedTrade.notes && (

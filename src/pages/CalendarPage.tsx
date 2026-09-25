@@ -6,10 +6,10 @@ import { computeMetrics } from '../calculations'
 import { Card, SectionHeader, ChipButton } from '../components/ui'
 import type { InstrumentType } from '../types'
 
-const INSTRUMENT_FILTERS: ('Todos' | InstrumentType)[] = ['Todos', 'Futuros', 'Opciones', 'Forex', 'Acciones']
+const INSTRUMENT_FILTERS: ('Todos' | InstrumentType)[] = ['Todos', 'Futuros', 'Opciones', 'Forex', 'Acciones', 'Crypto']
 
 export default function CalendarPage() {
-  const { trades, settings } = useAppData()
+  const { trades, settings, accounts } = useAppData()
   const today = new Date()
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const year = cursor.getFullYear(), month = cursor.getMonth()
@@ -17,19 +17,33 @@ export default function CalendarPage() {
 
   const [instrumentFilter, setInstrumentFilter] = useState<'Todos' | InstrumentType>('Todos')
   const [symbolFilter, setSymbolFilter] = useState<string>('Todos')
+  const [accountFilter, setAccountFilter] = useState<string>('Todas')
+
+  const relevantAccounts = useMemo(() => {
+    if (instrumentFilter === 'Todos') return accounts
+    return accounts.filter(a => a.instrument_type === instrumentFilter)
+  }, [accounts, instrumentFilter])
 
   const availableSymbols = useMemo(() => {
-    const base = instrumentFilter === 'Todos' ? trades : trades.filter(t => t.instrument_type === instrumentFilter)
+    let base = instrumentFilter === 'Todos' ? trades : trades.filter(t => t.instrument_type === instrumentFilter)
+    if (accountFilter !== 'Todas') base = base.filter(t => t.account_id === accountFilter)
     return Array.from(new Set(base.map(t => t.symbol))).sort()
-  }, [trades, instrumentFilter])
+  }, [trades, instrumentFilter, accountFilter])
 
   useEffect(() => { setSymbolFilter('Todos') }, [instrumentFilter])
+  useEffect(() => {
+    if (accountFilter !== 'Todas' && !relevantAccounts.some(a => a.id === accountFilter)) {
+      setAccountFilter('Todas')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instrumentFilter])
 
   const filteredTrades = useMemo(() => trades.filter(t => {
     if (instrumentFilter !== 'Todos' && t.instrument_type !== instrumentFilter) return false
     if (symbolFilter !== 'Todos' && t.symbol !== symbolFilter) return false
+    if (accountFilter !== 'Todas' && t.account_id !== accountFilter) return false
     return true
-  }), [trades, instrumentFilter, symbolFilter])
+  }), [trades, instrumentFilter, symbolFilter, accountFilter])
 
   const monthTrades = useMemo(() => filteredTrades.filter(t => {
     const d = new Date(t.exit_datetime); return d.getMonth() === month && d.getFullYear() === year
@@ -51,12 +65,14 @@ export default function CalendarPage() {
   const goPrev = () => setCursor(new Date(year, month - 1, 1))
   const goNext = () => setCursor(new Date(year, month + 1, 1))
 
+  const selectedAccountName = accountFilter !== 'Todas' ? accounts.find(a => a.id === accountFilter)?.name : null
+
   return (
     <div>
       <SectionHeader
         eyebrow="Calendar"
         title={`${MONTHS_ES[month]} ${year}`}
-        subtitle={`${metrics.tradingDays} dias activos · ${monthTrades.length} trades · Total ${fmt(metrics.netPnl)}`}
+        subtitle={`${metrics.tradingDays} dias activos · ${monthTrades.length} trades · Total ${fmt(metrics.netPnl)}${selectedAccountName ? ` · Cuenta: ${selectedAccountName}` : ''}`}
         right={
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <div className="flex gap-1.5 flex-wrap">
@@ -64,6 +80,14 @@ export default function CalendarPage() {
                 <ChipButton key={f} active={instrumentFilter === f} onClick={() => setInstrumentFilter(f)}>{f}</ChipButton>
               ))}
             </div>
+            <select
+              value={accountFilter}
+              onChange={e => setAccountFilter(e.target.value)}
+              className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium"
+            >
+              <option value="Todas">Todas las cuentas</option>
+              {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
             <select
               value={symbolFilter}
               onChange={e => setSymbolFilter(e.target.value)}

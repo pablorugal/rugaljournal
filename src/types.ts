@@ -1,5 +1,5 @@
 export type Direction = 'long' | 'short'
-export type InstrumentType = 'Futuros' | 'Opciones' | 'Forex' | 'Acciones'
+export type InstrumentType = 'Futuros' | 'Opciones' | 'Forex' | 'Acciones' | 'Crypto'
 
 export interface Trade {
   id: string
@@ -18,6 +18,7 @@ export interface Trade {
   strategy_id?: string | null
   custom_setup?: string
   checklist_id?: string | null
+  account_id?: string | null
   rating?: number
   screenshots?: string[]
   notes?: string
@@ -63,4 +64,72 @@ export interface UserSettings {
   breakeven_threshold: number
   commission_nq: number
   commission_mnq: number
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  imagePreview?: string
+}
+
+export interface Conversation {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  created_at: string
+  updated_at: string
+}
+
+export type MindsetBias = 'Alcista' | 'Bajista' | 'Sin sesgo'
+
+export interface MindsetEntry {
+  id: string
+  date: string
+  challenge_day?: number
+  emotion?: number
+  slept_well?: boolean
+  emotional_baggage?: boolean
+  market_structure?: '' | 'clear' | 'accumulation'
+  daily_bias?: MindsetBias | ''
+  high_impact_news?: boolean
+  conviction?: boolean
+  goal_today?: string
+  plan_if_red?: string
+  has_premarket?: boolean
+  close_emotion?: number
+  change_vs_start?: '' | 'mejor' | 'igual' | 'peor'
+  state_before_first_trade?: string
+  needed_to_recover?: boolean
+  wrong_decision?: boolean
+  dominant_emotion?: string
+  emotion_influence?: string
+  followed_plan?: '' | 'yes' | 'partial' | 'no'
+  traded_version?: string
+  emotional_learning?: string
+  tomorrow_change?: string
+  has_postsession?: boolean
+  created_at: string
+  updated_at: string
+}
+
+/* ==================== CUENTAS ==================== */
+export type AccountCategory = 'Prop Firm' | 'Capital Real'
+export type AccountPhase = 'Fase 1' | 'Fase 2' | 'Funded' | 'Challenge'
+export type AccountStatus = 'Activa' | 'Funded' | 'Quemada' | 'Pausada' | 'Archivada'
+
+export interface TradingAccount {
+  id: string
+  name: string
+  instrument_type: InstrumentType
+  category: AccountCategory
+  phase?: AccountPhase | ''
+  broker?: string
+  status: AccountStatus
+  currency: string
+  initial_balance: number
+  profit_target_pct?: number
+  start_date?: string
+  notes?: string
+  created_at: string
+  updated_at: string
 }

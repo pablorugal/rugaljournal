@@ -20,8 +20,8 @@ export default {
           700: '#141F38',
           600: '#1C2A4A',
         },
-        profit: '#16A34A',
-        loss: '#DC2626',
+        profit: '#171717',
+        loss: '#78716C',
         accent: {
           DEFAULT: '#111318',
           light: '#2B2E37',
