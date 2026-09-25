@@ -18,12 +18,13 @@ const mainNav = [
   { to: '/weekly-review', label: 'Resumen Semanal', icon: ClipboardList },
   { to: '/mindset', label: 'Mindset', icon: Brain },
   { to: '/zen', label: 'ZEN', icon: Sparkles },
+  { to: '/ai', label: 'Nova IA', icon: Bot },
 ]
 const toolsNav = [
   { to: '/habits', label: 'Hábitos', icon: CheckSquare },
   { to: '/checklists', label: 'Checklists', icon: ListTodo },
   { to: '/import-export', label: 'Importar/Exportar', icon: Upload },
-  { to: '/ai', label: 'Nova IA', icon: Bot },
+  
 ]
 function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; icon: any; end?: boolean }) {
   return (

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import {
   Boxes, DollarSign, Clock, BookOpen, ListChecks, Paperclip, UploadCloud, Star, ArrowUpDown,
   Pencil, Trash2, AlertTriangle, Wallet,
@@ -448,17 +448,36 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
   )
 }
 
-/* ==================== TRADE HISTORY ==================== */
+/* ==================== TRADE HISTORY (con filtros + agrupación + paginación) ==================== */
 function TradeHistory() {
   const { trades, strategies, settings, deleteTrade, accounts } = useAppData()
+
+  // Filtros
   const [search, setSearch] = useState('')
+  const [strategyFilter, setStrategyFilter] = useState('')
+  const [accountFilter, setAccountFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   const [sortKey, setSortKey] = useState<'exit_datetime' | 'symbol' | 'pnl'>('exit_datetime')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
   const [mode, setMode] = useState<'view' | 'edit' | 'confirmDelete'>('view')
 
+  // Paginación
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
+
   const filtered = useMemo(() => {
-    let list = trades.filter(t => t.symbol.toLowerCase().includes(search.toLowerCase()))
+    let list = trades.filter(t => {
+      const matchesSearch = !search || t.symbol.toLowerCase().includes(search.toLowerCase())
+      const matchesStrategy = !strategyFilter || t.strategy_id === strategyFilter
+      const matchesAccount = !accountFilter || t.account_id === accountFilter
+      const exitDate = new Date(t.exit_datetime)
+      const matchesFrom = !dateFrom || exitDate >= new Date(dateFrom + 'T00:00:00')
+      const matchesTo = !dateTo || exitDate <= new Date(dateTo + 'T23:59:59')
+      return matchesSearch && matchesStrategy && matchesAccount && matchesFrom && matchesTo
+    })
     list = list.sort((a, b) => {
       let cmp = 0
       if (sortKey === 'symbol') cmp = a.symbol.localeCompare(b.symbol)
@@ -467,10 +486,39 @@ function TradeHistory() {
       return sortDir === 'asc' ? cmp : -cmp
     })
     return list
-  }, [trades, search, sortKey, sortDir])
+  }, [trades, search, strategyFilter, accountFilter, dateFrom, dateTo, sortKey, sortDir])
+
+  // Resetear a página 1 cuando cambian los filtros
+  useEffect(() => { setPage(1) }, [search, strategyFilter, accountFilter, dateFrom, dateTo, sortKey, sortDir])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
+
+  // Agrupar los trades de la página actual por día
+  const grouped = useMemo(() => {
+    const groups: { dateKey: string; label: string; trades: Trade[] }[] = []
+    paginated.forEach(t => {
+      const d = new Date(t.exit_datetime)
+      const dateKey = d.toDateString()
+      const label = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      let group = groups.find(g => g.dateKey === dateKey)
+      if (!group) {
+        group = { dateKey, label, trades: [] }
+        groups.push(group)
+      }
+      group.trades.push(t)
+    })
+    return groups
+  }, [paginated])
+
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc')); else { setSortKey(key); setSortDir('desc') }
   }
+
+  const clearFilters = () => {
+    setSearch(''); setStrategyFilter(''); setAccountFilter(''); setDateFrom(''); setDateTo('')
+  }
+  const hasActiveFilters = !!(search || strategyFilter || accountFilter || dateFrom || dateTo)
 
   const openTrade = (t: Trade) => { setSelectedTrade(t); setMode('view') }
   const closeModal = () => { setSelectedTrade(null); setMode('view') }
@@ -489,43 +537,154 @@ function TradeHistory() {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="serif text-xl font-semibold">Historial de Operaciones</h3>
-        <input placeholder="Buscar símbolo..." value={search} onChange={e => setSearch(e.target.value)} className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm w-56" />
+        <span className="text-xs text-ink-900/40 dark:text-bone-100/40">{filtered.length} resultado(s)</span>
       </div>
-      {trades.length === 0 ? <p className="text-sm text-ink-900/40 dark:text-bone-100/40 py-10 text-center">Aún no has registrado ninguna operación.</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 border-b border-black/5 dark:border-white/5">
-                <th className="py-3 cursor-pointer" onClick={() => toggleSort('exit_datetime')}><span className="flex items-center gap-1">Fecha <ArrowUpDown size={12} /></span></th>
-                <th className="py-3 cursor-pointer" onClick={() => toggleSort('symbol')}><span className="flex items-center gap-1">Símbolo <ArrowUpDown size={12} /></span></th>
-                <th className="py-3">Dirección</th><th className="py-3">Cuenta</th><th className="py-3">Estrategia</th><th className="py-3">Rating</th>
-                <th className="py-3 cursor-pointer" onClick={() => toggleSort('pnl')}><span className="flex items-center gap-1">P&L Bruto <ArrowUpDown size={12} /></span></th>
-                <th className="py-3">P&L Neto</th><th className="py-3">Resultado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(t => {
-                const strat = strategies.find(s => s.id === t.strategy_id)
-                const accName = accounts.find(a => a.id === t.account_id)?.name
-                const net = getNetPnl(t, settings)
-                const cls = classifyTrade(t, settings)
-                return (
-                  <tr key={t.id} onClick={() => openTrade(t)} className="border-b border-black/5 dark:border-white/5 last:border-0 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                    <td className="py-3">{new Date(t.exit_datetime).toLocaleString()}</td>
-                    <td className="py-3 font-medium">{t.symbol}</td>
-                    <td className="py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded ${t.direction === 'long' ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss'}`}>{t.direction.toUpperCase()}</span></td>
-                    <td className="py-3 text-xs text-ink-900/50 dark:text-bone-100/50">{accName || '—'}</td>
-                    <td className="py-3">{strat?.name || t.custom_setup || '—'}</td>
-                    <td className="py-3">{t.rating ? `${t.rating}/10` : '—'}</td>
-                    <td className={`py-3 font-medium ${t.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(t.pnl)}</td>
-                    <td className={`py-3 font-medium ${net >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(net)}</td>
-                    <td className="py-3"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${cls === 'win' ? 'bg-profit/10 text-profit' : cls === 'loss' ? 'bg-loss/10 text-loss' : 'bg-amber-400/10 text-amber-500'}`}>{cls === 'be' ? 'breakeven' : cls}</span></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+
+      {/* ===== FILTROS ===== */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5 p-4 bg-bone-50 dark:bg-ink-700 rounded-xl border border-black/5 dark:border-white/5">
+        <div>
+          <label className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mb-1 block">Símbolo</label>
+          <input
+            placeholder="EURUSD, NQ..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
+          />
         </div>
+        <div>
+          <label className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mb-1 block">Estrategia</label>
+          <select
+            value={strategyFilter}
+            onChange={e => setStrategyFilter(e.target.value)}
+            className="w-full bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">Todas</option>
+            {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mb-1 block">Cuenta</label>
+          <select
+            value={accountFilter}
+            onChange={e => setAccountFilter(e.target.value)}
+            className="w-full bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">Todas</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mb-1 block">Desde</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="w-full bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mb-1 block">Hasta</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="w-full bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        {hasActiveFilters && (
+          <div className="col-span-2 md:col-span-5 flex justify-end">
+            <button onClick={clearFilters} className="text-xs text-accent hover:underline">Limpiar filtros</button>
+          </div>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-ink-900/40 dark:text-bone-100/40 py-10 text-center">
+          {trades.length === 0 ? 'Aún no has registrado ninguna operación.' : 'No hay operaciones que coincidan con los filtros.'}
+        </p>
+      ) : (
+        <>
+          {/* Controles de orden */}
+          <div className="flex items-center gap-4 mb-3 px-1">
+            <button onClick={() => toggleSort('exit_datetime')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+              Fecha <ArrowUpDown size={11} />
+            </button>
+            <button onClick={() => toggleSort('symbol')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+              Símbolo <ArrowUpDown size={11} />
+            </button>
+            <button onClick={() => toggleSort('pnl')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+              P&L <ArrowUpDown size={11} />
+            </button>
+          </div>
+
+          {/* Grupos por día */}
+          <div className="space-y-6">
+            {grouped.map(group => {
+              const groupPnl = group.trades.reduce((sum, t) => sum + getNetPnl(t, settings), 0)
+              return (
+                <div key={group.dateKey}>
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-900/50 dark:text-bone-100/50 capitalize">
+                      {group.label} <span className="text-ink-900/30 dark:text-bone-100/30 normal-case font-normal">· {group.trades.length} trade(s)</span>
+                    </h4>
+                    <span className={`text-xs font-bold ${groupPnl >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(groupPnl)}</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-black/5 dark:border-white/5">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {group.trades.map(t => {
+                          const strat = strategies.find(s => s.id === t.strategy_id)
+                          const accName = accounts.find(a => a.id === t.account_id)?.name
+                          const net = getNetPnl(t, settings)
+                          const cls = classifyTrade(t, settings)
+                          return (
+                            <tr key={t.id} onClick={() => openTrade(t)} className="border-b border-black/5 dark:border-white/5 last:border-0 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                              <td className="py-3 px-3 text-xs text-ink-900/50 dark:text-bone-100/50 w-20">{new Date(t.exit_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className="py-3 px-3 font-medium">{t.symbol}</td>
+                              <td className="py-3 px-3"><span className={`text-[10px] font-bold px-2 py-1 rounded ${t.direction === 'long' ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss'}`}>{t.direction.toUpperCase()}</span></td>
+                              <td className="py-3 px-3 text-xs text-ink-900/50 dark:text-bone-100/50">{accName || '—'}</td>
+                              <td className="py-3 px-3 text-xs">{strat?.name || t.custom_setup || '—'}</td>
+                              <td className="py-3 px-3">{t.rating ? `${t.rating}/10` : '—'}</td>
+                              <td className={`py-3 px-3 font-medium ${t.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(t.pnl)}</td>
+                              <td className={`py-3 px-3 font-medium ${net >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(net)}</td>
+                              <td className="py-3 px-3"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${cls === 'win' ? 'bg-profit/10 text-profit' : cls === 'loss' ? 'bg-loss/10 text-loss' : 'bg-amber-400/10 text-amber-500'}`}>{cls === 'be' ? 'breakeven' : cls}</span></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-black/5 dark:border-white/5">
+              <p className="text-xs text-ink-900/40 dark:text-bone-100/40">
+                Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-medium disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  Anterior
+                </button>
+                <span className="text-xs text-ink-900/50 dark:text-bone-100/50 px-2">Página {page} de {totalPages}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-medium disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Modal open={!!selectedTrade} onClose={closeModal} widthClass={mode === 'edit' ? 'max-w-4xl' : 'max-w-2xl'}>

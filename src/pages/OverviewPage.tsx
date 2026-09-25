@@ -8,8 +8,10 @@ import { useAppData } from '../contexts'
 import { MONTHS_ES, fmt } from '../utils'
 import {
   computeMetrics, computePerformanceScore, computeExpectancy, computeMaxDrawdown,
+  getAccountIdsForGroupFilter,
 } from '../calculations'
 import { Card, SectionHeader, StatCard, Gauge } from '../components/ui'
+import { AccountGroupDropdown, type AccountGroupValue } from '../components/Filters'
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
@@ -19,15 +21,23 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
 export default function OverviewPage() {
-  const { trades, strategies, settings } = useAppData()
+  const { trades, strategies, settings, accounts } = useAppData()
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
+  const [groupFilter, setGroupFilter] = useState<AccountGroupValue>({ instrument: 'Todas', phase: 'Todas' })
+
+  const accountIds = useMemo(() => getAccountIdsForGroupFilter(accounts, groupFilter), [accounts, groupFilter])
+
   const monthTrades = useMemo(() => trades.filter(t => {
     const d = new Date(t.exit_datetime)
-    return d.getMonth() === month && d.getFullYear() === year
-  }), [trades, month, year])
+    if (d.getMonth() !== month || d.getFullYear() !== year) return false
+    if (accountIds && !accountIds.includes(t.account_id || '')) return false
+    return true
+  }), [trades, month, year, accountIds])
+
   const metrics = useMemo(() => computeMetrics(monthTrades, settings), [monthTrades, settings])
   const score = computePerformanceScore(metrics)
   const expectancy = computeExpectancy(monthTrades, settings)
@@ -43,13 +53,24 @@ export default function OverviewPage() {
     })
     return Object.values(map).sort((a, b) => b.pnl - a.pnl).slice(0, 5)
   }, [monthTrades, strategies])
-  const recentTrades = [...trades].sort((a, b) => new Date(b.exit_datetime).getTime() - new Date(a.exit_datetime).getTime()).slice(0, 5)
+  const recentTrades = useMemo(() => {
+    const source = accountIds ? trades.filter(t => accountIds.includes(t.account_id || '')) : trades
+    return [...source].sort((a, b) => new Date(b.exit_datetime).getTime() - new Date(a.exit_datetime).getTime()).slice(0, 5)
+  }, [trades, accountIds])
+
+  const groupLabel = groupFilter.instrument === 'Todas'
+    ? null
+    : (groupFilter.instrument === 'Forex' || groupFilter.instrument === 'Futuros') && groupFilter.phase !== 'Todas'
+      ? `${groupFilter.instrument} · ${groupFilter.phase}`
+      : groupFilter.instrument
 
   return (
     <div>
-      <SectionHeader eyebrow="Dashboard" title="Overview" subtitle="Tu rendimiento consolidado del periodo seleccionado."
+      <SectionHeader eyebrow="Dashboard" title="Overview"
+        subtitle={`Tu rendimiento consolidado del periodo seleccionado.${groupLabel ? ` · Cuenta: ${groupLabel}` : ''}`}
         right={
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <AccountGroupDropdown value={groupFilter} onChange={setGroupFilter} />
             <select value={month} onChange={e => setMonth(Number(e.target.value))} className="bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm">
               {MONTHS_ES.map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>

@@ -8,6 +8,7 @@ import { fmt, todayISO } from '../utils'
 import { getNetPnl, computeAccountStats, groupAccountsByPhase } from '../calculations'
 import type { TradingAccount, InstrumentType, AccountCategory, AccountPhase, AccountStatus } from '../types'
 import { Card, SectionHeader, PillTabs, ChipButton, Field, inputCls, Modal, StatCard, MiniMetric, Block } from '../components/ui'
+import { InstrumentDropdown } from '../components/Filters'
 
 /* ==================== HELPERS ==================== */
 interface AccountFormState {
@@ -498,11 +499,11 @@ export default function AccountsPage() {
           <PillTabs tabs={[{ id: 'active', label: 'Activas' }, { id: 'history', label: 'Histórico' }]} active={statusTab} onChange={v => setStatusTab(v as any)} />
           <PillTabs tabs={[{ id: 'accounts', label: 'Por cuenta' }, { id: 'groups', label: 'Por grupo' }]} active={viewMode} onChange={v => setViewMode(v as any)} />
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {INSTRUMENT_FILTERS.map(f => (
-            <ChipButton key={f} active={instrumentFilter === f} onClick={() => setInstrumentFilter(f)}>{f}</ChipButton>
-          ))}
-        </div>
+        <InstrumentDropdown
+          value={instrumentFilter}
+          onChange={v => setInstrumentFilter(v as 'Todas' | InstrumentType)}
+          options={INSTRUMENT_FILTERS.map(f => ({ value: f, label: f }))}
+        />
       </div>
 
       {filtered.length === 0 ? (

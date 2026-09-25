@@ -5,7 +5,8 @@ import {
   filterTrades, computeByHour, computeByWeekday, computeBySession, computeRMultipleDistribution,
   getNetPnl,
 } from '../calculations'
-import { Card, SectionHeader, StatCard, PillTabs, ChipButton } from '../components/ui'
+import { Card, SectionHeader, StatCard, PillTabs } from '../components/ui'
+import { InstrumentDropdown } from '../components/Filters'
 import { fmt } from '../utils'
 import type { InstrumentType } from '../types'
 
@@ -60,6 +61,8 @@ export default function AnalyticsPage() {
 
   const selectedAccountName = accountFilter !== 'all' ? accounts.find(a => a.id === accountFilter)?.name : null
 
+  const instrumentOptions = INSTRUMENT_FILTERS.map(opt => ({ value: opt, label: opt === 'all' ? 'Todos' : opt }))
+
   return (
     <div>
       <SectionHeader
@@ -72,11 +75,11 @@ export default function AnalyticsPage() {
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mr-1">Activo</span>
-          {INSTRUMENT_FILTERS.map(opt => (
-            <ChipButton key={opt} active={instrumentFilter === opt} onClick={() => setInstrumentFilter(opt)}>
-              {opt === 'all' ? 'Todos' : opt}
-            </ChipButton>
-          ))}
+          <InstrumentDropdown
+            value={instrumentFilter}
+            onChange={v => setInstrumentFilter(v as InstrumentType | 'all')}
+            options={instrumentOptions}
+          />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mr-1">Cuenta</span>

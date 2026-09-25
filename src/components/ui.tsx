@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { UploadCloud, X, Check } from 'lucide-react'
 import type { Direction } from '../types'
 
-export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white dark:bg-ink-800 border border-black/5 dark:border-white/5 rounded-2xl shadow-soft ${className}`}>{children}</div>
+export function Card({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+  return <div onClick={onClick} className={`bg-white dark:bg-ink-800 border border-black/5 dark:border-white/5 rounded-2xl shadow-soft ${className}`}>{children}</div>
 }
 export function SectionHeader({ eyebrow, title, subtitle, right }: { eyebrow: string; title: string; subtitle?: string; right?: React.ReactNode }) {
   return (

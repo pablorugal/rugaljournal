@@ -1,4 +1,4 @@
-import type { Trade, UserSettings, InstrumentType, Direction, TradingAccount } from './types'
+import type { Trade, UserSettings, InstrumentType, Direction, TradingAccount, AccountPhase } from './types'
 /* ==================== COMISIONES ==================== */
 export function getCommissionPerContract(symbol: string, settings: UserSettings) {
   const s = symbol.toUpperCase()
@@ -275,4 +275,27 @@ export function groupAccountsByPhase(accounts: TradingAccount[], trades: Trade[]
     groups[label].netPnl += stats.netPnl
   })
   return Object.values(groups).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/* ==================== FILTRO DE GRUPO (Instrumento + Fase) — usado en Panel ==================== */
+export interface AccountGroupFilter {
+  instrument: InstrumentType | 'Todas'
+  phase: AccountPhase | 'Capital Real' | 'Todas'
+}
+
+/**
+ * Devuelve los IDs de cuenta que caen dentro del grupo instrumento+fase seleccionado.
+ * Devuelve null si el filtro es "Todas" (sin filtrar nada).
+ */
+export function getAccountIdsForGroupFilter(accounts: TradingAccount[], filter: AccountGroupFilter): string[] | null {
+  if (filter.instrument === 'Todas') return null
+  let matched = accounts.filter(a => a.instrument_type === filter.instrument)
+  if (filter.phase && filter.phase !== 'Todas') {
+    if (filter.phase === 'Capital Real') {
+      matched = matched.filter(a => a.category === 'Capital Real')
+    } else {
+      matched = matched.filter(a => a.category === 'Prop Firm' && a.phase === filter.phase)
+    }
+  }
+  return matched.map(a => a.id)
 }

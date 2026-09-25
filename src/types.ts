@@ -39,6 +39,7 @@ export interface DailyBiasEntry {
   id: string
   date: string
   market: BiasMarket
+  symbol?: string
   expected_direction: BiasDirection
   expected_description: string
   expected_screenshots?: string[]

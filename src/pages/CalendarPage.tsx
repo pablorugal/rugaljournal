@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAppData } from '../contexts'
 import { MONTHS_ES, DAYS_ES, toISODate, isSameDay, getISOWeek, getMonthMatrix, fmt } from '../utils'
 import { computeMetrics } from '../calculations'
-import { Card, SectionHeader, ChipButton } from '../components/ui'
+import { Card, SectionHeader } from '../components/ui'
+import { InstrumentDropdown } from '../components/Filters'
 import type { InstrumentType } from '../types'
 
 const INSTRUMENT_FILTERS: ('Todos' | InstrumentType)[] = ['Todos', 'Futuros', 'Opciones', 'Forex', 'Acciones', 'Crypto']
@@ -75,11 +76,11 @@ export default function CalendarPage() {
         subtitle={`${metrics.tradingDays} dias activos · ${monthTrades.length} trades · Total ${fmt(metrics.netPnl)}${selectedAccountName ? ` · Cuenta: ${selectedAccountName}` : ''}`}
         right={
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <div className="flex gap-1.5 flex-wrap">
-              {INSTRUMENT_FILTERS.map(f => (
-                <ChipButton key={f} active={instrumentFilter === f} onClick={() => setInstrumentFilter(f)}>{f}</ChipButton>
-              ))}
-            </div>
+            <InstrumentDropdown
+              value={instrumentFilter}
+              onChange={v => setInstrumentFilter(v as 'Todos' | InstrumentType)}
+              options={INSTRUMENT_FILTERS.map(f => ({ value: f, label: f }))}
+            />
             <select
               value={accountFilter}
               onChange={e => setAccountFilter(e.target.value)}
