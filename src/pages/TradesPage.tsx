@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
-  Boxes, DollarSign, Clock, BookOpen, ListChecks, Paperclip, UploadCloud, Star, ArrowUpDown,
+  Boxes, DollarSign, Clock, BookOpen, ListChecks, Paperclip, Star, ArrowUpDown,
   Pencil, Trash2, AlertTriangle, Wallet,
 } from 'lucide-react'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -13,6 +13,7 @@ import {
   Card, SectionHeader, PillTabs, Field, inputCls, DirectionToggle, Modal, StatCard, ScreenshotUploader,
   Block, MiniMetric,
 } from '../components/ui'
+import { TradeForm } from '../components/TradeForm'
 
 /* ==================== SHARED ==================== */
 const emptyForm = {
@@ -44,203 +45,6 @@ function tradeToForm(t: Trade) {
 }
 
 const INSTRUMENT_OPTIONS: InstrumentType[] = ['Futuros', 'Opciones', 'Forex', 'Acciones', 'Crypto']
-
-/* ==================== TRADE FORM (Nuevo Trade) ==================== */
-function TradeForm({ onSaved }: { onSaved: () => void }) {
-  const { strategies, addStrategy, checklists, addTrade, accounts } = useAppData()
-  const { user } = useAuth()
-  const [form, setForm] = useState(emptyForm)
-  const [useFreeSetup, setUseFreeSetup] = useState(false)
-  const [newStrategyName, setNewStrategyName] = useState('')
-  const [showNewStrategy, setShowNewStrategy] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
-  const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
-
-  const set = (key: keyof typeof form) => (e: any) => {
-    const value = e?.target ? e.target.value : e
-    setForm(prev => ({ ...prev, [key]: value }))
-  }
-  const handleFiles = (fileList: FileList | null) => {
-    if (!fileList) return
-    const valid = Array.from(fileList).filter(f => f.size <= 5 * 1024 * 1024 && /image\/(png|jpe?g)/.test(f.type))
-    setFiles(prev => [...prev, ...valid])
-  }
-  const clearForm = () => { setForm(emptyForm); setFiles([]); setUseFreeSetup(false) }
-  const handleCreateStrategy = () => {
-    if (!newStrategyName.trim()) return
-    const s = { id: crypto.randomUUID(), name: newStrategyName.trim(), created_at: new Date().toISOString() }
-    addStrategy(s); setForm(prev => ({ ...prev, strategy_id: s.id })); setNewStrategyName(''); setShowNewStrategy(false)
-  }
-
-  const relevantAccounts = useMemo(() => accounts.filter(a => a.instrument_type === form.instrument_type), [accounts, form.instrument_type])
-
-  const autoPnl = useMemo(() => calculateAutoPnl({
-    instrument_type: form.instrument_type,
-    symbol: form.symbol,
-    direction: form.direction,
-    entry_price: Number(form.entry_price) || 0,
-    exit_price: Number(form.exit_price) || 0,
-    position_size: Number(form.position_size) || 0,
-  }), [form.instrument_type, form.symbol, form.direction, form.entry_price, form.exit_price, form.position_size])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const tradeId = crypto.randomUUID()
-
-    let screenshotUrls: string[] = []
-    if (files.length > 0) {
-      setUploading(true)
-      try {
-        screenshotUrls = await Promise.all(
-          files.map(async (file, i) => {
-            const fileRef = ref(storage, `users/${user!.uid}/trades/${tradeId}/${Date.now()}_${i}_${file.name}`)
-            await uploadBytes(fileRef, file)
-            return getDownloadURL(fileRef)
-          })
-        )
-      } catch (err) {
-        console.error('Error al subir screenshots:', err)
-      } finally {
-        setUploading(false)
-      }
-    }
-
-    const finalPnl = form.pnl.trim() !== '' ? Number(form.pnl) : autoPnl
-
-    const trade: Trade = {
-      id: tradeId, symbol: form.symbol.toUpperCase(), instrument_type: form.instrument_type, direction: form.direction,
-      entry_price: Number(form.entry_price) || 0, exit_price: Number(form.exit_price) || 0, position_size: Number(form.position_size) || 0,
-      pnl: finalPnl, risk_amount: Number(form.risk_amount) || undefined, stop_loss: Number(form.stop_loss) || undefined,
-      take_profit: Number(form.take_profit) || undefined, entry_datetime: form.entry_datetime || new Date().toISOString(),
-      exit_datetime: form.exit_datetime || new Date().toISOString(), strategy_id: useFreeSetup ? null : (form.strategy_id || null),
-      custom_setup: useFreeSetup ? form.custom_setup : undefined, checklist_id: form.checklist_id || null,
-      account_id: form.account_id || null, rating: form.rating,
-      screenshots: screenshotUrls, notes: form.notes, created_at: new Date().toISOString(),
-    }
-    addTrade(trade); clearForm(); onSaved()
-  }
-
-  return (
-    <Card className="p-6 md:p-8">
-      <div className="flex items-center gap-3 mb-1">
-        <div className="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center"><span className="text-lg font-bold">+</span></div>
-        <h2 className="serif text-2xl font-semibold">Registrar Operación</h2>
-      </div>
-      <p className="text-sm text-ink-900/50 dark:text-bone-100/50 mb-8 ml-12">Añade los detalles de tu trade</p>
-
-      <form onSubmit={handleSubmit} className="space-y-10">
-        <Block icon={Boxes} title="Instrumento" first>
-          <div className="grid md:grid-cols-4 gap-4">
-            <Field label="Símbolo"><input value={form.symbol} onChange={set('symbol')} placeholder="NQ, MNQ, ES, EURUSD..." className={inputCls} /></Field>
-            <Field label="Tipo">
-              <select value={form.instrument_type} onChange={set('instrument_type')} className={inputCls}>
-                {INSTRUMENT_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </Field>
-            <Field label="Dirección"><DirectionToggle value={form.direction} onChange={v => setForm(p => ({ ...p, direction: v }))} /></Field>
-            <Field label="Cuenta (opcional)">
-              <select value={form.account_id} onChange={set('account_id')} className={inputCls}>
-                <option value="">Sin cuenta asignada</option>
-                {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </Field>
-          </div>
-        </Block>
-        <Block icon={DollarSign} title="Precios y Resultado">
-          <div className="grid md:grid-cols-4 gap-4">
-            <Field label="Precio Entrada"><input type="number" step="0.01" value={form.entry_price} onChange={set('entry_price')} className={inputCls} /></Field>
-            <Field label="Precio Salida"><input type="number" step="0.01" value={form.exit_price} onChange={set('exit_price')} className={inputCls} /></Field>
-            <Field label="Tamaño Posición (contratos)"><input type="number" value={form.position_size} onChange={set('position_size')} className={inputCls} /></Field>
-            <Field label="P&L $ (opcional)">
-              <input type="number" step="0.01" placeholder={`Auto: ${fmt(autoPnl)}`} value={form.pnl} onChange={set('pnl')} className={inputCls} />
-              <p className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mt-1">
-                Vacío = cálculo automático (<strong>{fmt(autoPnl)}</strong>). Rellénalo solo si quieres forzar otro valor.
-              </p>
-            </Field>
-            <Field label="Riesgo $"><input type="number" step="0.01" value={form.risk_amount} onChange={set('risk_amount')} className={inputCls} /></Field>
-            <Field label="Stop Loss"><input type="number" step="0.01" value={form.stop_loss} onChange={set('stop_loss')} className={inputCls} /></Field>
-            <Field label="Take Profit"><input type="number" step="0.01" value={form.take_profit} onChange={set('take_profit')} className={inputCls} /></Field>
-          </div>
-        </Block>
-        <Block icon={Clock} title="Tiempo">
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Fecha/Hora Entrada"><input type="datetime-local" value={form.entry_datetime} onChange={set('entry_datetime')} className={inputCls} /></Field>
-            <Field label="Fecha/Hora Salida"><input type="datetime-local" value={form.exit_datetime} onChange={set('exit_datetime')} className={inputCls} /></Field>
-          </div>
-        </Block>
-        <Block icon={BookOpen} title="Estrategia">
-          <div className="flex items-center gap-2 mb-3">
-            <button type="button" onClick={() => setUseFreeSetup(false)} className={`text-xs px-3 py-1 rounded-full ${!useFreeSetup ? 'bg-black/8 dark:bg-white/10 text-ink-900 dark:text-bone-100 font-semibold' : 'bg-black/5 dark:bg-white/5 text-ink-900/60 dark:text-bone-100/60'}`}>Playbook</button>
-            <button type="button" onClick={() => setUseFreeSetup(true)} className={`text-xs px-3 py-1 rounded-full ${useFreeSetup ? 'bg-black/8 dark:bg-white/10 text-ink-900 dark:text-bone-100 font-semibold' : 'bg-black/5 dark:bg-white/5 text-ink-900/60 dark:text-bone-100/60'}`}>Setup libre</button>
-          </div>
-          {!useFreeSetup ? (
-            strategies.length === 0 ? (
-              !showNewStrategy ? (
-                <button type="button" onClick={() => setShowNewStrategy(true)} className="text-sm text-accent font-medium hover:underline">No hay estrategias guardadas · Crear una</button>
-              ) : (
-                <div className="flex gap-2">
-                  <input value={newStrategyName} onChange={e => setNewStrategyName(e.target.value)} placeholder="Nombre de la estrategia" className={inputCls} />
-                  <button type="button" onClick={handleCreateStrategy} className="px-4 rounded-lg bg-accent text-white text-sm font-medium">Crear</button>
-                </div>
-              )
-            ) : (
-              <div className="flex gap-2 items-center">
-                <select value={form.strategy_id} onChange={set('strategy_id')} className={inputCls}>
-                  <option value="">Selecciona un setup del playbook</option>
-                  {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <button type="button" onClick={() => setShowNewStrategy(true)} className="text-xs text-accent whitespace-nowrap">+ Crear</button>
-              </div>
-            )
-          ) : (
-            <Field label="Setup del día (texto libre)"><input value={form.custom_setup} onChange={set('custom_setup')} placeholder="Ej: Ruptura de rango premarket" className={inputCls} /></Field>
-          )}
-        </Block>
-        <Block icon={ListChecks} title="Confluencias y Rating">
-          <div className="grid md:grid-cols-2 gap-4 items-end">
-            <Field label="Checklist asociado">
-              <select value={form.checklist_id} onChange={set('checklist_id')} className={inputCls}>
-                <option value="">Sin checklist</option>
-                {checklists.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Rating (1-10)">
-              <div className="flex gap-1">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <button key={i} type="button" onClick={() => setForm(p => ({ ...p, rating: i + 1 }))}>
-                    <Star size={20} className={i < form.rating ? 'fill-amber-400 text-amber-400' : 'text-black/15 dark:text-white/15'} />
-                  </button>
-                ))}
-              </div>
-            </Field>
-          </div>
-        </Block>
-        <Block icon={Paperclip} title="Adjuntos y Notas">
-          <div onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
-            onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-            className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition ${dragOver ? 'border-accent bg-accent/5' : 'border-black/10 dark:border-white/10'}`}>
-            <UploadCloud className="mx-auto mb-2 text-ink-900/30 dark:text-bone-100/30" />
-            <p className="text-sm text-ink-900/50 dark:text-bone-100/50">Arrastra tus screenshots aquí o</p>
-            <label className="text-accent text-sm font-medium cursor-pointer hover:underline">
-              selecciona archivos
-              <input type="file" accept="image/png,image/jpeg" multiple hidden onChange={e => handleFiles(e.target.files)} />
-            </label>
-            <p className="text-[11px] text-ink-900/30 dark:text-bone-100/30 mt-1">PNG/JPG hasta 5MB</p>
-            {files.length > 0 && <p className="text-xs mt-3 text-accent">{files.length} archivo(s) seleccionado(s)</p>}
-          </div>
-          <Field label="Notas"><textarea value={form.notes} onChange={set('notes')} rows={4} placeholder="¿Qué viste? ¿Cómo gestionaste la operación?" className={inputCls} /></Field>
-        </Block>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={clearForm} className="px-5 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5">Limpiar</button>
-          <button type="submit" disabled={uploading} className="px-6 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light disabled:opacity-50">
-            {uploading ? 'Subiendo capturas...' : '+ Registrar Trade'}
-          </button>
-        </div>
-      </form>
-    </Card>
-  )
-}
 
 /* ==================== EDIT TRADE FORM (dentro del modal) ==================== */
 function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: () => void; onSaved: (t: Trade) => void }) {
@@ -448,9 +252,9 @@ function TradeEditForm({ trade, onCancel, onSaved }: { trade: Trade; onCancel: (
   )
 }
 
-/* ==================== TRADE HISTORY (con filtros + agrupación + paginación) ==================== */
+/* ==================== TRADE HISTORY (con filtros + agrupación + paginación + selección múltiple) ==================== */
 function TradeHistory() {
-  const { trades, strategies, settings, deleteTrade, accounts } = useAppData()
+  const { trades, strategies, settings, deleteTrade, deleteTrades, accounts } = useAppData()
 
   // Filtros
   const [search, setSearch] = useState('')
@@ -467,6 +271,12 @@ function TradeHistory() {
   // Paginación
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
+
+  // Selección múltiple
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [deletingBulk, setDeletingBulk] = useState(false)
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
     let list = trades.filter(t => {
@@ -488,8 +298,10 @@ function TradeHistory() {
     return list
   }, [trades, search, strategyFilter, accountFilter, dateFrom, dateTo, sortKey, sortDir])
 
-  // Resetear a página 1 cuando cambian los filtros
-  useEffect(() => { setPage(1) }, [search, strategyFilter, accountFilter, dateFrom, dateTo, sortKey, sortDir])
+  // Resetear a página 1 y limpiar selección cuando cambian los filtros
+  useEffect(() => { setPage(1); setSelectedIds(new Set()) }, [search, strategyFilter, accountFilter, dateFrom, dateTo, sortKey, sortDir])
+  // Limpiar selección al cambiar de página
+  useEffect(() => { setSelectedIds(new Set()) }, [page])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page])
@@ -526,6 +338,40 @@ function TradeHistory() {
     if (!selectedTrade) return
     deleteTrade(selectedTrade.id)
     closeModal()
+  }
+
+  // ===== Selección múltiple: derivados y toggles =====
+  const allVisibleIds = useMemo(() => paginated.map(t => t.id), [paginated])
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id))
+  const someSelected = allVisibleIds.some(id => selectedIds.has(id))
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected && !allSelected
+    }
+  }, [someSelected, allSelected])
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(allVisibleIds))
+  }
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const handleBulkDelete = async () => {
+    setDeletingBulk(true)
+    try {
+      await deleteTrades(Array.from(selectedIds))
+      setSelectedIds(new Set())
+      setBulkDeleteConfirm(false)
+    } catch (err) {
+      console.error('Error al eliminar operaciones seleccionadas:', err)
+    } finally {
+      setDeletingBulk(false)
+    }
   }
 
   const selectedStrat = selectedTrade ? strategies.find(s => s.id === selectedTrade.strategy_id) : null
@@ -604,17 +450,47 @@ function TradeHistory() {
         </p>
       ) : (
         <>
-          {/* Controles de orden */}
-          <div className="flex items-center gap-4 mb-3 px-1">
-            <button onClick={() => toggleSort('exit_datetime')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
-              Fecha <ArrowUpDown size={11} />
-            </button>
-            <button onClick={() => toggleSort('symbol')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
-              Símbolo <ArrowUpDown size={11} />
-            </button>
-            <button onClick={() => toggleSort('pnl')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
-              P&L <ArrowUpDown size={11} />
-            </button>
+          {/* ===== Barra de selección + orden ===== */}
+          <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-black/20 dark:border-white/20 accent-accent cursor-pointer"
+                />
+                <span className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40">
+                  {selectedIds.size > 0 ? `${selectedIds.size} seleccionada(s)` : `Seleccionar todo (${paginated.length})`}
+                </span>
+              </label>
+              <button onClick={() => toggleSort('exit_datetime')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+                Fecha <ArrowUpDown size={11} />
+              </button>
+              <button onClick={() => toggleSort('symbol')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+                Símbolo <ArrowUpDown size={11} />
+              </button>
+              <button onClick={() => toggleSort('pnl')} className="text-[11px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40 flex items-center gap-1 hover:text-accent">
+                P&L <ArrowUpDown size={11} />
+              </button>
+            </div>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBulkDeleteConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-loss/30 text-loss text-xs font-medium hover:bg-loss/10"
+                >
+                  <Trash2 size={13} /> Eliminar ({selectedIds.size})
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-ink-900/50 dark:text-bone-100/50 hover:underline px-2"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grupos por día */}
@@ -637,8 +513,21 @@ function TradeHistory() {
                           const accName = accounts.find(a => a.id === t.account_id)?.name
                           const net = getNetPnl(t, settings)
                           const cls = classifyTrade(t, settings)
+                          const isSelected = selectedIds.has(t.id)
                           return (
-                            <tr key={t.id} onClick={() => openTrade(t)} className="border-b border-black/5 dark:border-white/5 last:border-0 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                            <tr
+                              key={t.id}
+                              onClick={() => openTrade(t)}
+                              className={`border-b border-black/5 dark:border-white/5 last:border-0 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] ${isSelected ? 'bg-accent/5' : ''}`}
+                            >
+                              <td className="py-3 pl-3 pr-1 w-8" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectOne(t.id)}
+                                  className="w-4 h-4 rounded border-black/20 dark:border-white/20 accent-accent cursor-pointer"
+                                />
+                              </td>
                               <td className="py-3 px-3 text-xs text-ink-900/50 dark:text-bone-100/50 w-20">{new Date(t.exit_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                               <td className="py-3 px-3 font-medium">{t.symbol}</td>
                               <td className="py-3 px-3"><span className={`text-[10px] font-bold px-2 py-1 rounded ${t.direction === 'long' ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss'}`}>{t.direction.toUpperCase()}</span></td>
@@ -687,6 +576,7 @@ function TradeHistory() {
         </>
       )}
 
+      {/* ===== Modal detalle / editar / eliminar individual ===== */}
       <Modal open={!!selectedTrade} onClose={closeModal} widthClass={mode === 'edit' ? 'max-w-4xl' : 'max-w-2xl'}>
         {selectedTrade && mode === 'view' && (
           <div>
@@ -779,6 +669,35 @@ function TradeHistory() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ===== Modal confirmación borrado múltiple ===== */}
+      <Modal open={bulkDeleteConfirm} onClose={() => !deletingBulk && setBulkDeleteConfirm(false)}>
+        <div className="text-center py-6">
+          <div className="w-14 h-14 rounded-full bg-loss/10 text-loss flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={26} />
+          </div>
+          <h2 className="serif text-xl font-semibold mb-2">¿Eliminar {selectedIds.size} operación(es)?</h2>
+          <p className="text-sm text-ink-900/50 dark:text-bone-100/50 mb-6">
+            Esta acción no se puede deshacer. Se eliminarán permanentemente todas las operaciones seleccionadas.
+          </p>
+          <div className="flex justify-center gap-3">
+            <button
+              disabled={deletingBulk}
+              onClick={() => setBulkDeleteConfirm(false)}
+              className="px-5 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={deletingBulk}
+              onClick={handleBulkDelete}
+              className="px-5 py-2.5 rounded-lg bg-loss text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+            >
+              {deletingBulk ? 'Eliminando...' : 'Sí, eliminar'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </Card>
   )

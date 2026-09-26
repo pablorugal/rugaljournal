@@ -10,8 +10,9 @@ import {
   computeMetrics, computePerformanceScore, computeExpectancy, computeMaxDrawdown,
   getAccountIdsForGroupFilter,
 } from '../calculations'
-import { Card, SectionHeader, StatCard, Gauge } from '../components/ui'
-import { AccountGroupDropdown, type AccountGroupValue } from '../components/Filters'
+import { Card, SectionHeader, StatCard, Gauge, Modal } from '../components/ui'
+import { AccountGroupDropdown, Dropdown, type AccountGroupValue } from '../components/Filters'
+import { TradeForm } from '../components/TradeForm'
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
@@ -28,6 +29,7 @@ export default function OverviewPage() {
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
   const [groupFilter, setGroupFilter] = useState<AccountGroupValue>({ instrument: 'Todas', phase: 'Todas' })
+  const [showNewTradeModal, setShowNewTradeModal] = useState(false)
 
   const accountIds = useMemo(() => getAccountIdsForGroupFilter(accounts, groupFilter), [accounts, groupFilter])
 
@@ -64,6 +66,9 @@ export default function OverviewPage() {
       ? `${groupFilter.instrument} · ${groupFilter.phase}`
       : groupFilter.instrument
 
+  const monthOptions = MONTHS_ES.map((m, i) => ({ value: String(i), label: m }))
+  const yearOptions = [year - 1, year, year + 1].map(y => ({ value: String(y), label: String(y) }))
+
   return (
     <div>
       <SectionHeader eyebrow="Dashboard" title="Overview"
@@ -71,13 +76,26 @@ export default function OverviewPage() {
         right={
           <div className="flex items-center gap-3 flex-wrap justify-end">
             <AccountGroupDropdown value={groupFilter} onChange={setGroupFilter} />
-            <select value={month} onChange={e => setMonth(Number(e.target.value))} className="bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm">
-              {MONTHS_ES.map((m, i) => <option key={m} value={i}>{m}</option>)}
-            </select>
-            <select value={year} onChange={e => setYear(Number(e.target.value))} className="bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm">
-              {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <Link to="/trades" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light"><Plus size={16} /> New Trade</Link>
+            <Dropdown
+              value={String(month)}
+              onChange={v => setMonth(Number(v))}
+              options={monthOptions}
+              align="right"
+              widthClass="w-44"
+            />
+            <Dropdown
+              value={String(year)}
+              onChange={v => setYear(Number(v))}
+              options={yearOptions}
+              align="right"
+              widthClass="w-28"
+            />
+            <button
+              onClick={() => setShowNewTradeModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light transition"
+            >
+              <Plus size={16} /> New Trade
+            </button>
           </div>
         } />
 
@@ -171,6 +189,14 @@ export default function OverviewPage() {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={showNewTradeModal}
+        onClose={() => setShowNewTradeModal(false)}
+        widthClass="max-w-4xl"
+      >
+        <TradeForm onSaved={() => setShowNewTradeModal(false)} />
+      </Modal>
     </div>
   )
 }

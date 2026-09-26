@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore'
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { db, auth } from './firebase'
 import type {
@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS: UserSettings = { theme: 'light', language: 'es', breakev
 
 interface AppDataCtx {
   trades: Trade[]; addTrade: (t: Trade) => void; updateTrade: (id: string, t: Partial<Trade>) => void; deleteTrade: (id: string) => void
+  deleteTrades: (ids: string[]) => Promise<void>
   strategies: Strategy[]; addStrategy: (s: Strategy) => void
   checklists: Checklist[]; addChecklist: (c: Checklist) => void; updateChecklist: (id: string, c: Partial<Checklist>) => void; deleteChecklist: (id: string) => void
   habitRules: HabitRule[]; addHabitRule: (r: HabitRule) => void
@@ -172,6 +173,17 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     },
     deleteTrade: (id) => {
       deleteDoc(doc(db, 'users', uid, 'trades', id)).catch(err => console.error('Error al eliminar trade:', err))
+    },
+    deleteTrades: async (ids: string[]) => {
+      if (ids.length === 0) return
+      const batch = writeBatch(db)
+      ids.forEach(id => batch.delete(doc(db, 'users', uid, 'trades', id)))
+      try {
+        await batch.commit()
+      } catch (err) {
+        console.error('Error al eliminar trades en batch:', err)
+        throw err
+      }
     },
 
     strategies, addStrategy: (s) => {

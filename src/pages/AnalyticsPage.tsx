@@ -6,7 +6,7 @@ import {
   getNetPnl,
 } from '../calculations'
 import { Card, SectionHeader, StatCard, PillTabs } from '../components/ui'
-import { InstrumentDropdown } from '../components/Filters'
+import { InstrumentDropdown, Dropdown } from '../components/Filters'
 import { fmt } from '../utils'
 import type { InstrumentType } from '../types'
 
@@ -83,25 +83,25 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mr-1">Cuenta</span>
-          <select
+          <Dropdown
             value={accountFilter}
-            onChange={e => setAccountFilter(e.target.value)}
-            className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
-          >
-            <option value="all">Todas las cuentas</option>
-            {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+            onChange={setAccountFilter}
+            options={[
+              { value: 'all', label: 'Todas las cuentas' },
+              ...relevantAccounts.map(a => ({ value: a.id, label: a.name })),
+            ]}
+          />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mr-1">Estrategia</span>
-          <select
+          <Dropdown
             value={strategyFilter}
-            onChange={e => setStrategyFilter(e.target.value)}
-            className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
-          >
-            <option value="all">Todas las estrategias</option>
-            {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+            onChange={setStrategyFilter}
+            options={[
+              { value: 'all', label: 'Todas las estrategias' },
+              ...strategies.map(s => ({ value: s.id, label: s.name })),
+            ]}
+          />
         </div>
       </div>
 

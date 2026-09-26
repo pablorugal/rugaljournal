@@ -4,7 +4,7 @@ import { useAppData } from '../contexts'
 import { MONTHS_ES, DAYS_ES, toISODate, isSameDay, getISOWeek, getMonthMatrix, fmt } from '../utils'
 import { computeMetrics } from '../calculations'
 import { Card, SectionHeader } from '../components/ui'
-import { InstrumentDropdown } from '../components/Filters'
+import { InstrumentDropdown, Dropdown } from '../components/Filters'
 import type { InstrumentType } from '../types'
 
 const INSTRUMENT_FILTERS: ('Todos' | InstrumentType)[] = ['Todos', 'Futuros', 'Opciones', 'Forex', 'Acciones', 'Crypto']
@@ -81,22 +81,24 @@ export default function CalendarPage() {
               onChange={v => setInstrumentFilter(v as 'Todos' | InstrumentType)}
               options={INSTRUMENT_FILTERS.map(f => ({ value: f, label: f }))}
             />
-            <select
+            <Dropdown
               value={accountFilter}
-              onChange={e => setAccountFilter(e.target.value)}
-              className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium"
-            >
-              <option value="Todas">Todas las cuentas</option>
-              {relevantAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <select
+              onChange={setAccountFilter}
+              align="right"
+              options={[
+                { value: 'Todas', label: 'Todas las cuentas' },
+                ...relevantAccounts.map(a => ({ value: a.id, label: a.name })),
+              ]}
+            />
+            <Dropdown
               value={symbolFilter}
-              onChange={e => setSymbolFilter(e.target.value)}
-              className="bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium"
-            >
-              <option value="Todos">Todos los simbolos</option>
-              {availableSymbols.map(sym => <option key={sym} value={sym}>{sym}</option>)}
-            </select>
+              onChange={setSymbolFilter}
+              align="right"
+              options={[
+                { value: 'Todos', label: 'Todos los símbolos' },
+                ...availableSymbols.map(sym => ({ value: sym, label: sym })),
+              ]}
+            />
           </div>
         }
       />

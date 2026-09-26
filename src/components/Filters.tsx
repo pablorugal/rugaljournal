@@ -80,6 +80,73 @@ export function InstrumentDropdown({
   )
 }
 
+/* ==================== DROPDOWN GENÉRICO (sin iconos por opción) ==================== */
+export interface DropdownOption {
+  value: string
+  label: string
+}
+
+export function Dropdown({
+  value,
+  onChange,
+  options,
+  icon: Icon,
+  placeholder = '—',
+  widthClass = 'w-56',
+  align = 'left',
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: DropdownOption[]
+  icon?: any
+  placeholder?: string
+  widthClass?: string
+  align?: 'left' | 'right'
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false))
+
+  const current = options.find(o => o.value === value)
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-ink-800 text-sm font-medium shadow-soft hover:bg-black/5 dark:hover:bg-white/5 transition"
+      >
+        {Icon && <Icon size={15} className="text-accent" />}
+        <span>{current?.label ?? placeholder}</span>
+        <ChevronDown size={15} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          className={`absolute z-30 mt-2 ${align === 'right' ? 'right-0' : 'left-0'} ${widthClass} max-h-72 overflow-y-auto bg-white dark:bg-ink-800 border border-black/10 dark:border-white/10 rounded-2xl shadow-xl p-2`}
+        >
+          {options.map(o => {
+            const active = value === o.value
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => { onChange(o.value); setOpen(false) }}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition text-left ${
+                  active
+                    ? 'bg-accent/10 text-accent'
+                    : 'hover:bg-black/5 dark:hover:bg-white/5 text-ink-900/70 dark:text-bone-100/70'
+                }`}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ==================== DROPDOWN DE DOS NIVELES: INSTRUMENTO + FASE ==================== */
 export interface AccountGroupValue {
   instrument: InstrumentType | 'Todas'
