@@ -1,0 +1,82 @@
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-profit: 63 118 84;
+  --c-loss: 168 70 62;
+  --c-accent: 17 19 24;
+  --c-accent-light: 43 46 55;
+}
+
+.dark {
+  --c-profit: 111 190 138;
+  --c-loss: 226 112 104;
+  --c-accent: 245 165 36;
+  --c-accent-light: 255 210 122;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-bone-50 text-ink-900 dark:bg-ink-900 dark:text-bone-100 font-sans antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+::selection { background: rgba(245, 165, 36, 0.35); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { @apply bg-black/10 dark:bg-white/10 rounded-full; }
+
+.serif,
+.font-serif {
+  font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Botones con fondo accent: en oscuro es ámbar, el texto debe ser oscuro */
+.dark .bg-accent { color: #1A1204; }
+
+/* Fondo del journal en oscuro: puntos y brillo ámbar muy tenue */
+.dark .app-bg {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 75% 0%, rgba(245, 165, 36, 0.07), transparent 70%),
+    radial-gradient(rgba(245, 241, 232, 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
+  background-attachment: fixed, fixed;
+}
+
+/* Tarjetas en oscuro: brillo ámbar fino arriba y resplandor al pasar el ratón */
+.dark .tj-card {
+  box-shadow: inset 0 1px 0 rgba(245, 165, 36, 0.28);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.dark .tj-card:hover {
+  border-color: rgba(245, 165, 36, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 165, 36, 0.5),
+    0 8px 32px rgba(245, 165, 36, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dark .tj-card { transition: none; }
+}
+
+/* Anillo de enfoque con el color de acento (enlaces y botones, al navegar con teclado) */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgb(var(--c-accent) / 0.7);
+  outline-offset: 2px;
+}
+
+/* Autocompletado de Chrome en oscuro */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #F5F1E8;
+  box-shadow: 0 0 0 1000px #0B0A08 inset;
+  caret-color: #F5F1E8;
+}

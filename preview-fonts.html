@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Preview Tipografías - TuJournal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,500&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #0a0908;
+    color: #fff;
+    padding: 60px;
+    font-family: 'Switzer', sans-serif;
+    margin: 0;
+  }
+  .section {
+    margin-bottom: 60px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid #262524;
+  }
+  .label {
+    color: #c9a876;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .title-cabinet {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: 56px;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    letter-spacing: -1px;
+  }
+  .body-switzer {
+    font-family: 'Switzer', sans-serif;
+    font-size: 16px;
+    color: #999;
+    font-weight: 400;
+  }
+  .number-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 44px;
+    font-weight: 700;
+    color: #ff6b6b;
+    letter-spacing: -1px;
+  }
+  .number-mono.positive {
+    color: #4ade80;
+  }
+  .card {
+    background: #151413;
+    padding: 32px;
+    border-radius: 14px;
+    display: inline-block;
+    margin: 10px 20px 10px 0;
+    border: 1px solid #262524;
+  }
+  .sidebar-item {
+    font-family: 'Switzer', sans-serif;
+    font-size: 15px;
+    color: #ccc;
+    margin: 12px 0;
+    font-weight: 500;
+  }
+  .grid {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+  <div class="section">
+    <div class="label">Título principal — Cabinet Grotesk</div>
+    <h1 class="title-cabinet">Overview</h1>
+    <p class="body-switzer">Tu rendimiento consolidado del periodo seleccionado.</p>
+  </div>
+
+  <div class="section">
+    <div class="label">Números / Stats — JetBrains Mono</div>
+    <div class="grid">
+      <div class="card">
+        <div class="label">NET P&L</div>
+        <div class="number-mono">-$156.60</div>
+      </div>
+      <div class="card">
+        <div class="label">WIN RATE</div>
+        <div class="number-mono positive">11.1%</div>
+      </div>
+      <div class="card">
+        <div class="label">PROFIT FACTOR</div>
+        <div class="number-mono positive">0.52</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Menú lateral — Switzer</div>
+    <div class="sidebar-item">📅 Calendario</div>
+    <div class="sidebar-item">💼 Cuentas</div>
+    <div class="sidebar-item">📊 Analítica</div>
+    <div class="sidebar-item">⚡ Operaciones</div>
+    <div class="sidebar-item">🧠 Mindset</div>
+  </div>
+
+</body>
+</html>

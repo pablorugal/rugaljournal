@@ -1,0 +1,22 @@
+type Props = { label: string; src?: string; alt?: string }
+
+export default function BrowserFrame({ label, src, alt = '' }: Props) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[#2A2620] bg-[#14120F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+      <div className="flex items-center gap-2 border-b border-[#2A2620] px-4 py-3">
+        <span className="h-3 w-3 rounded-full bg-[#3A342B]" />
+        <span className="h-3 w-3 rounded-full bg-[#3A342B]" />
+        <span className="h-3 w-3 rounded-full bg-[#3A342B]" />
+        <span className="landing-mono ml-3 rounded-md bg-[#0B0A08] px-3 py-1 text-[11px] text-[#A8A196]">{label}</span>
+      </div>
+      {src ? (
+        <img src={src} alt={alt} loading="lazy" className="block w-full" />
+      ) : (
+        <div className="flex aspect-[16/10] flex-col items-center justify-center gap-2 bg-[radial-gradient(ellipse_at_center,rgba(245,165,36,0.07),transparent_70%)]">
+          <span className="landing-mono text-xs uppercase tracking-[0.2em] text-[#A8A196]">Captura de demo</span>
+          <span className="text-xs text-[#A8A196]/60">Próximamente</span>
+        </div>
+      )}
+    </div>
+  )
+}

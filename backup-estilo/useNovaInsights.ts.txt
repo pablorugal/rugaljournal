@@ -1,0 +1,250 @@
+import { useState, useEffect } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
+import { onAuthStateChanged } from 'firebase/auth'
+import { db, auth } from '../firebase'
+import { getConfidenceLevel, getConfidenceLabel } from '../calculations'
+import type { ConfidenceLevel } from '../calculations'
+
+// Una sola definición de nivel de confianza: la de calculations (fuente única).
+export { getConfidenceLevel }
+export type { ConfidenceLevel }
+
+/* ==================== TIPOS ==================== */
+export interface CorrelationGroup {
+  label: string
+  sampleSize: number
+  winRate: number
+  avgPnl: number
+  confidenceLevel: ConfidenceLevel
+}
+
+export interface NovaMetrics {
+  netPnl: number
+  winRate: number
+  profitFactor: number
+  tradingDays: number
+  wins: number
+  losses: number
+  breakevens: number
+}
+
+export interface DisciplineSummary {
+  totalDays: number
+  daysWithData: number
+  avgScore: number | null
+  brokenDaysCount: number
+  streakAlertActive: boolean
+}
+
+export interface HourBucket {
+  hour: number
+  count: number
+  pnl: number
+  wins: number
+  losses: number
+  winRate: number
+}
+
+export interface DeltaCorrelation {
+  groups: CorrelationGroup[]
+  delta: number
+  deltaConfidence: ConfidenceLevel
+}
+
+export interface NovaInsights {
+  generatedAt: string
+  dayOfWeek: CorrelationGroup[]
+  session: CorrelationGroup[]
+  instrument: CorrelationGroup[]
+  strategy: CorrelationGroup[]
+  emotion: CorrelationGroup[]
+  performanceScore: number | null
+  metrics: NovaMetrics | null
+  discipline: { summary: DisciplineSummary } | null
+  disciplineBrokenToPnl: DeltaCorrelation | null
+  postLossStreak: CorrelationGroup[]
+  byHour: HourBucket[] | null // null = el servidor aún no lo ha guardado
+}
+
+// Mensaje diario de Nova (documento novaInsights/message)
+export interface NovaMessage {
+  text: string
+  dateKey: string // YYYY-MM-DD (día natural de Madrid en que se generó)
+  generatedAt: string
+  tradesCount: number // nº de operaciones en las que se basó
+}
+
+/* ==================== ETIQUETAS (salen de getConfidenceLabel) ==================== */
+function buildMap<T>(pick: (level: ConfidenceLevel) => T): Record<ConfidenceLevel, T> {
+  return { 0: pick(0), 1: pick(1), 2: pick(2), 3: pick(3) }
+}
+
+export const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> =
+  buildMap(l => getConfidenceLabel(l).label)
+
+export const CONFIDENCE_TOOLTIPS: Record<ConfidenceLevel, string> =
+  buildMap(l => getConfidenceLabel(l).description)
+
+export const CONFIDENCE_COLORS: Record<ConfidenceLevel, string> = {
+  0: 'text-ink-900/30 dark:text-bone-100/30',
+  1: 'text-amber-400',
+  2: 'text-blue-400',
+  3: 'text-profit',
+}
+
+export const CONFIDENCE_BG: Record<ConfidenceLevel, string> = {
+  0: 'bg-black/5 dark:bg-white/5',
+  1: 'bg-amber-400/10',
+  2: 'bg-blue-400/10',
+  3: 'bg-profit/10',
+}
+
+/* ==================== LECTURA DE FIRESTORE ==================== */
+function toNumber(v: any, fallback = 0): number {
+  const n = Number(v)
+  return Number.isFinite(n) || n === Infinity ? n : fallback
+}
+
+// El nivel se recalcula siempre con la regla única, a partir de sampleSize.
+function normalizeGroup(g: any): CorrelationGroup {
+  const sampleSize = toNumber(g?.sampleSize)
+  return {
+    label: String(g?.label ?? ''),
+    sampleSize,
+    winRate: toNumber(g?.winRate),
+    avgPnl: toNumber(g?.avgPnl),
+    confidenceLevel: getConfidenceLevel(sampleSize),
+  }
+}
+
+function extractGroups(raw: any, key: string): CorrelationGroup[] {
+  const groups = raw?.correlations?.[key]?.groups
+  return Array.isArray(groups) ? groups.map(normalizeGroup) : []
+}
+
+function extractDelta(raw: any, key: string): DeltaCorrelation | null {
+  const c = raw?.correlations?.[key]
+  if (!c || !Array.isArray(c.groups)) return null
+  return {
+    groups: c.groups.map(normalizeGroup),
+    delta: toNumber(c.delta),
+    deltaConfidence: Math.max(0, Math.min(3, toNumber(c.deltaConfidence))) as ConfidenceLevel,
+  }
+}
+
+function extractMetrics(raw: any): NovaMetrics | null {
+  const m = raw?.metrics
+  if (!m) return null
+  return {
+    netPnl: toNumber(m.netPnl),
+    winRate: toNumber(m.winRate),
+    profitFactor: toNumber(m.profitFactor),
+    tradingDays: toNumber(m.tradingDays),
+    wins: toNumber(m.wins),
+    losses: toNumber(m.losses),
+    breakevens: toNumber(m.breakevens),
+  }
+}
+
+function extractDiscipline(raw: any): { summary: DisciplineSummary } | null {
+  const s = raw?.discipline?.summary
+  if (!s) return null
+  return {
+    summary: {
+      totalDays: toNumber(s.totalDays),
+      daysWithData: toNumber(s.daysWithData),
+      avgScore: s.avgScore === null || s.avgScore === undefined ? null : toNumber(s.avgScore),
+      brokenDaysCount: toNumber(s.brokenDaysCount),
+      streakAlertActive: !!s.streakAlertActive,
+    },
+  }
+}
+
+function extractByHour(raw: any): HourBucket[] | null {
+  if (!Array.isArray(raw?.byHour)) return null
+  return raw.byHour.map((h: any) => ({
+    hour: toNumber(h?.hour),
+    count: toNumber(h?.count),
+    pnl: toNumber(h?.pnl),
+    wins: toNumber(h?.wins),
+    losses: toNumber(h?.losses),
+    winRate: toNumber(h?.winRate),
+  }))
+}
+
+function extractMessage(raw: any): NovaMessage | null {
+  if (typeof raw?.text !== 'string' || raw.text.trim() === '') return null
+  return {
+    text: raw.text,
+    dateKey: String(raw.dateKey ?? ''),
+    generatedAt: String(raw.generatedAt ?? ''),
+    tradesCount: toNumber(raw.tradesCount),
+  }
+}
+
+/* ==================== HOOK ==================== */
+export function useNovaInsights() {
+  const [insights, setInsights] = useState<NovaInsights | null>(null)
+  const [message, setMessage] = useState<NovaMessage | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setInsights(null)
+        setMessage(null)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const ref = doc(db, 'users', user.uid, 'novaInsights', 'latest')
+        const snap = await getDoc(ref)
+
+        if (snap.exists()) {
+          const raw = snap.data()
+          const parsed: NovaInsights = {
+            generatedAt: raw.generatedAt ?? '',
+            dayOfWeek: extractGroups(raw, 'dayOfWeek'),
+            session: extractGroups(raw, 'session'),
+            instrument: extractGroups(raw, 'instrument'),
+            strategy: extractGroups(raw, 'strategy'),
+            emotion: extractGroups(raw, 'emotion'),
+            performanceScore:
+              raw.performanceScore === undefined || raw.performanceScore === null
+                ? null
+                : toNumber(raw.performanceScore),
+            metrics: extractMetrics(raw),
+            discipline: extractDiscipline(raw),
+            disciplineBrokenToPnl: extractDelta(raw, 'disciplineBrokenToPnl'),
+            postLossStreak: extractGroups(raw, 'postLossStreak'),
+            byHour: extractByHour(raw),
+          }
+          setInsights(parsed)
+
+          // El mensaje es opcional: si no existe o no se puede leer, el panel sigue igual.
+          try {
+            const msgSnap = await getDoc(doc(db, 'users', user.uid, 'novaInsights', 'message'))
+            setMessage(msgSnap.exists() ? extractMessage(msgSnap.data()) : null)
+          } catch (msgErr) {
+            console.warn('No se pudo leer el mensaje de Nova:', msgErr)
+            setMessage(null)
+          }
+        } else {
+          setInsights(null)
+          setMessage(null)
+        }
+      } catch (err) {
+        console.error('useNovaInsights error:', err)
+        setError('No se pudieron cargar los insights')
+      } finally {
+        setLoading(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  return { insights, message, loading, error }
+}

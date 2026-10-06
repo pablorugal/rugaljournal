@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Preview Sidebar Fonts - TuJournal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Outfit:wght@400;500;600&family=Urbanist:wght@400;500;600&family=Sora:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=Bricolage+Grotesque:wght@400;500;600&family=Figtree:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #050504;
+    padding: 40px;
+    font-family: sans-serif;
+  }
+  .container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .sidebar {
+    background: #0e0d0c;
+    width: 220px;
+    padding: 24px 18px;
+    border-radius: 16px;
+    border: 1px solid #1f1e1c;
+  }
+  .font-tag {
+    color: #c9a876;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    font-weight: 700;
+    font-family: Arial, sans-serif;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #c9a876, #8a6d3f);
+    border-radius: 8px;
+  }
+  .brand-name {
+    color: #fff;
+    font-weight: 600;
+    font-size: 17px;
+  }
+  .brand-sub {
+    color: #6b6a68;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    margin-left: 42px;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid #1f1e1c;
+    margin-bottom: 16px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 8px;
+    color: #a3a2a0;
+    font-size: 14.5px;
+    margin-bottom: 2px;
+    font-weight: 500;
+  }
+  .nav-item.active {
+    color: #e8dcc8;
+    background: #1a1815;
+  }
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- MANROPE -->
+    <div class="sidebar" style="font-family:'Manrope',sans-serif;">
+      <div class="font-tag">Manrope</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- PLUS JAKARTA SANS -->
+    <div class="sidebar" style="font-family:'Plus Jakarta Sans',sans-serif;">
+      <div class="font-tag">Plus Jakarta Sans</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- OUTFIT -->
+    <div class="sidebar" style="font-family:'Outfit',sans-serif;">
+      <div class="font-tag">Outfit</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- URBANIST -->
+    <div class="sidebar" style="font-family:'Urbanist',sans-serif;">
+      <div class="font-tag">Urbanist</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- SORA -->
+    <div class="sidebar" style="font-family:'Sora',sans-serif;">
+      <div class="font-tag">Sora</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- INSTRUMENT SANS -->
+    <div class="sidebar" style="font-family:'Instrument Sans',sans-serif;">
+      <div class="font-tag">Instrument Sans</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- BRICOLAGE GROTESQUE -->
+    <div class="sidebar" style="font-family:'Bricolage Grotesque',sans-serif;">
+      <div class="font-tag">Bricolage Grotesque</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+    <!-- SCHIBSTED GROTESK -->
+    <div class="sidebar" style="font-family:'Schibsted Grotesk',sans-serif;">
+      <div class="font-tag">Schibsted Grotesk</div>
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div class="brand-name">TuJournal</div>
+      </div>
+      <div class="brand-sub">Cockpit de Rendimiento</div>
+      <hr class="divider">
+      <div class="nav-item active">📅 Calendario</div>
+      <div class="nav-item">💼 Cuentas</div>
+      <div class="nav-item">🧭 Bias Diario</div>
+      <div class="nav-item">📊 Analítica</div>
+      <div class="nav-item">🔄 Operaciones</div>
+      <div class="nav-item">📖 Estrategias</div>
+      <div class="nav-item">🧠 Mindset</div>
+    </div>
+
+  </div>
+
+</body>
+</html>

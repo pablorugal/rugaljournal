@@ -1,0 +1,463 @@
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { Clock, Flame, ShieldCheck, Smile, TrendingDown, TrendingUp, Zap } from 'lucide-react'
+import { useAppData } from '../contexts'
+import { Card, SectionHeader, StatCard, Gauge, Block } from '../components/ui'
+import { ConfidenceBadge } from '../components/ConfidenceBadge'
+import { fmt } from '../utils'
+import { classifyTrade, CONFIDENCE_THRESHOLDS } from '../calculations'
+import { useNovaInsights } from '../lib/useNovaInsights'
+import type { ConfidenceLevel, CorrelationGroup, NovaInsights } from '../lib/useNovaInsights'
+
+/* ==================== AJUSTES DEL PANEL ==================== */
+const MAX_RANKING_ITEMS = 4 // filas máximas en 🔴 y 🟢
+const MAX_HOUR_ITEMS = 2 // top 2 mejores / peores horas
+const INITIAL_DISCIPLINE_DAYS = 5 // por debajo, la disciplina se muestra como "datos iniciales"
+
+// Dimensiones que entran en los rankings. El instrumento queda fuera a propósito.
+const RANKING_SOURCES: { key: 'dayOfWeek' | 'session' | 'strategy' | 'emotion'; tag: string }[] = [
+  { key: 'dayOfWeek', tag: 'Día' },
+  { key: 'session', tag: 'Sesión' },
+  { key: 'strategy', tag: 'Estrategia' },
+  { key: 'emotion', tag: 'Emoción' },
+]
+
+const STREAK_ORDER = ['Sin racha previa', 'Tras 1 pérdida', 'Tras 2 seguidas', 'Tras 3+ seguidas']
+
+/* ==================== HELPERS ==================== */
+const round2 = (n: number) => Math.round(n * 100) / 100
+const signed = (n: number) => `${n > 0 ? '+' : ''}${fmt(n)}`
+const isUnlabeled = (label: string) => label.trim().toLowerCase().startsWith('sin etiquetar')
+
+function hourLabel(h: number) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(h)}:00–${p((h + 1) % 24)}:00`
+}
+
+function streakLabelFor(n: number) {
+  return STREAK_ORDER[Math.min(n, 3)]
+}
+
+function formatShortDate(iso: string) {
+  const d = new Date(iso + 'T00:00:00')
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+}
+
+interface RankItem {
+  key: string
+  label: string
+  tag?: string
+  detail: string
+  value: number // coste en $ = avgPnl × n
+  level: ConfidenceLevel
+}
+
+function buildRankItems(ins: NovaInsights): RankItem[] {
+  const out: RankItem[] = []
+  for (const src of RANKING_SOURCES) {
+    for (const g of ins[src.key]) {
+      if (g.confidenceLevel === 0) continue // regla 1
+      if (src.key === 'strategy' && isUnlabeled(g.label)) continue // regla 5
+      out.push({
+        key: `${src.key}-${g.label}`,
+        label: g.label,
+        tag: src.tag,
+        detail: `${g.sampleSize} trades · WR ${g.winRate}% · media ${fmt(g.avgPnl)}`,
+        value: round2(g.avgPnl * g.sampleSize),
+        level: g.confidenceLevel,
+      })
+    }
+  }
+  return out
+}
+
+function buildHourItems(ins: NovaInsights): RankItem[] {
+  if (!ins.byHour) return []
+  const out: RankItem[] = []
+  for (const h of ins.byHour) {
+    const level = getLevel(h.count)
+    if (level === 0) continue // regla 1
+    out.push({
+      key: `hour-${h.hour}`,
+      label: hourLabel(h.hour),
+      detail: `${h.count} trades · media ${fmt(round2(h.pnl / h.count))}`,
+      value: round2(h.pnl),
+      level,
+    })
+  }
+  return out
+}
+
+// Mismo criterio que getConfidenceLevel, usando los umbrales oficiales
+function getLevel(n: number): ConfidenceLevel {
+  if (n >= CONFIDENCE_THRESHOLDS.consolidated) return 3
+  if (n >= CONFIDENCE_THRESHOLDS.emerging) return 2
+  if (n >= CONFIDENCE_THRESHOLDS.exploratory) return 1
+  return 0
+}
+
+/* ==================== COMPONENTES PEQUEÑOS ==================== */
+function CardTitle({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2">
+        <Icon size={18} className="text-accent" />
+        <h3 className="serif text-xl font-semibold">{title}</h3>
+      </div>
+      {subtitle && <p className="text-xs text-ink-900/40 dark:text-bone-100/40 mt-1">{subtitle}</p>}
+    </div>
+  )
+}
+
+function RankRow({ item }: { item: RankItem }) {
+  const tone = item.value >= 0 ? 'text-profit' : 'text-loss'
+  return (
+    <div className="flex items-center justify-between gap-3 py-3 border-b border-black/5 dark:border-white/5 last:border-0">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium">{item.label}</p>
+          {item.tag && (
+            <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-ink-900/50 dark:text-bone-100/50">
+              {item.tag}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-ink-900/40 dark:text-bone-100/40 mt-0.5">{item.detail}</p>
+        {item.level === 1 && (
+          <p className="text-[11px] italic text-ink-900/40 dark:text-bone-100/40 mt-0.5">
+            Pocas operaciones: tómalo como orientación, no como conclusión.
+          </p>
+        )}
+      </div>
+      <div className="text-right shrink-0 space-y-1">
+        <p className={`font-semibold ${tone}`}>{signed(item.value)}</p>
+        <ConfidenceBadge level={item.level} />
+      </div>
+    </div>
+  )
+}
+
+function RankingCard({
+  icon, title, subtitle, items, emptyText,
+}: { icon: any; title: string; subtitle: string; items: RankItem[]; emptyText: string }) {
+  return (
+    <Card className="p-6">
+      <CardTitle icon={icon} title={title} subtitle={subtitle} />
+      {items.length === 0 ? (
+        <p className="text-sm text-ink-900/40 dark:text-bone-100/40">{emptyText}</p>
+      ) : (
+        <div>{items.map(i => <RankRow key={i.key} item={i} />)}</div>
+      )}
+    </Card>
+  )
+}
+
+function StreakRow({ label, group, current }: { label: string; group?: CorrelationGroup; current: boolean }) {
+  const level = group?.confidenceLevel ?? 0
+  const n = group?.sampleSize ?? 0
+  const isBase = label === STREAK_ORDER[0]
+  return (
+    <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg ${current ? 'bg-black/5 dark:bg-white/5' : ''}`}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium">{label}</p>
+          {isBase && <span className="text-[10px] text-ink-900/40 dark:text-bone-100/40">base de comparación</span>}
+          {current && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent text-white">Ahora</span>
+          )}
+        </div>
+        <p className="text-xs text-ink-900/40 dark:text-bone-100/40 mt-0.5">
+          {level === 0 || !group
+            ? `${n} trades · sin datos suficientes`
+            : `${n} trades · WR ${group.winRate}% · media ${fmt(group.avgPnl)}`}
+        </p>
+      </div>
+      <ConfidenceBadge level={level} />
+    </div>
+  )
+}
+
+/* ==================== PÁGINA ==================== */
+export default function NovaPanelPage() {
+  const { insights, loading, error } = useNovaInsights()
+  const { trades, settings, mindsetEntries } = useAppData()
+
+  const rankItems = useMemo(() => (insights ? buildRankItems(insights) : []), [insights])
+  const worst = useMemo(
+    () => rankItems.filter(i => i.value < 0).sort((a, b) => a.value - b.value).slice(0, MAX_RANKING_ITEMS),
+    [rankItems]
+  )
+  const best = useMemo(
+    () => rankItems.filter(i => i.value > 0).sort((a, b) => b.value - a.value).slice(0, MAX_RANKING_ITEMS),
+    [rankItems]
+  )
+
+  const hourItems = useMemo(() => (insights ? buildHourItems(insights) : []), [insights])
+  const bestHours = useMemo(
+    () => hourItems.filter(i => i.value > 0).sort((a, b) => b.value - a.value).slice(0, MAX_HOUR_ITEMS),
+    [hourItems]
+  )
+  const worstHours = useMemo(
+    () => hourItems.filter(i => i.value < 0).sort((a, b) => a.value - b.value).slice(0, MAX_HOUR_ITEMS),
+    [hourItems]
+  )
+
+  // Racha actual en vivo (misma regla de pérdida que usa el servidor)
+  const currentLossStreak = useMemo(() => {
+    const sorted = [...trades].sort(
+      (a, b) => new Date(b.entry_datetime).getTime() - new Date(a.entry_datetime).getTime()
+    )
+    let streak = 0
+    for (const t of sorted) {
+      if (classifyTrade(t, settings) === 'loss') streak++
+      else break
+    }
+    return streak
+  }, [trades, settings])
+
+  // Última emoción dominante registrada en Mindset
+  const lastEmotion = useMemo(() => {
+    const entry = [...mindsetEntries]
+      .filter(m => m.dominant_emotion)
+      .sort((a, b) => b.date.localeCompare(a.date))[0]
+    return entry ? { date: entry.date, emotion: entry.dominant_emotion as string } : null
+  }, [mindsetEntries])
+
+  if (loading) {
+    return (
+      <div>
+        <SectionHeader eyebrow="Nova" title="Panel Nova" />
+        <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Cargando insights...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div>
+        <SectionHeader eyebrow="Nova" title="Panel Nova" />
+        <Card className="p-6"><p className="text-sm text-loss">{error}</p></Card>
+      </div>
+    )
+  }
+
+  if (!insights) {
+    return (
+      <div>
+        <SectionHeader eyebrow="Nova" title="Panel Nova" />
+        <Card className="p-6">
+          <p className="text-sm text-ink-900/60 dark:text-bone-100/60">
+            Aún no hay insights generados. Ve a <Link to="/" className="text-accent hover:underline">Panel</Link> y
+            pulsa «Actualizar insights Nova».
+          </p>
+        </Card>
+      </div>
+    )
+  }
+
+  const generated = insights.generatedAt
+    ? new Date(insights.generatedAt).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+    : '—'
+
+  const m = insights.metrics
+  const disc = insights.discipline?.summary ?? null
+  const discBroken = insights.disciplineBrokenToPnl
+  const showDiscBroken = !!discBroken && discBroken.deltaConfidence > 0 // regla 6
+  const currentStreakLabel = streakLabelFor(currentLossStreak)
+
+  const streakText =
+    trades.length === 0
+      ? 'Aún no hay operaciones.'
+      : currentLossStreak === 0
+        ? 'Tu último trade no fue pérdida: no hay racha en curso.'
+        : `Llevas ${currentLossStreak} ${currentLossStreak === 1 ? 'pérdida' : 'pérdidas'} seguidas.`
+
+  return (
+    <div>
+      <SectionHeader
+        eyebrow="Nova"
+        title="Panel Nova"
+        subtitle={`Datos del último cálculo: ${generated}. Se recalcula cada noche a las 00:00.`}
+      />
+
+      {/* ===== PERFORMANCE SCORE + MÉTRICAS ===== */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <Card className="p-6 flex flex-col items-center">
+          <p className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 self-start mb-2">
+            Performance Score
+          </p>
+          {insights.performanceScore === null ? (
+            <p className="text-sm text-ink-900/40 dark:text-bone-100/40 py-8">Sin datos</p>
+          ) : (
+            <Gauge score={Math.round(insights.performanceScore)} />
+          )}
+        </Card>
+
+        <div className="xl:col-span-2 grid grid-cols-2 gap-4">
+          <StatCard
+            label="Net P&L"
+            value={m ? fmt(m.netPnl) : '—'}
+            positive={m ? m.netPnl >= 0 : null}
+          />
+          <StatCard
+            label="Win Rate"
+            value={m ? `${m.winRate}%` : '—'}
+            sub={m ? `${m.wins}W / ${m.losses}L / ${m.breakevens}BE` : undefined}
+          />
+          <StatCard
+            label="Profit Factor"
+            value={m ? (Number.isFinite(m.profitFactor) ? m.profitFactor.toFixed(2) : '∞') : '—'}
+            positive={m ? m.profitFactor >= 1 : null}
+          />
+          <StatCard label="Días operados" value={m ? String(m.tradingDays) : '—'} />
+        </div>
+      </div>
+
+      {/* ===== RANKINGS ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <RankingCard
+          icon={TrendingDown}
+          title="Lo que más falla"
+          subtitle="Coste en $ = media por trade × nº de trades (P&L neto)."
+          items={worst}
+          emptyText={`Ningún grupo con ${CONFIDENCE_THRESHOLDS.exploratory}+ operaciones tiene saldo negativo.`}
+        />
+        <RankingCard
+          icon={TrendingUp}
+          title="Lo que mejor funciona"
+          subtitle="Aportación en $ = media por trade × nº de trades (P&L neto)."
+          items={best}
+          emptyText={`Ningún grupo con ${CONFIDENCE_THRESHOLDS.exploratory}+ operaciones tiene saldo positivo.`}
+        />
+      </div>
+
+      {/* ===== ESTADO AHORA + HORAS ===== */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        <Card className="p-6">
+          <CardTitle icon={Zap} title="Tu estado ahora" />
+          <div className="space-y-8">
+            <Block icon={Flame} title="Racha" first>
+              <p className="text-sm font-medium mb-3">{streakText}</p>
+              <div className="space-y-1">
+                {STREAK_ORDER.map(label => (
+                  <StreakRow
+                    key={label}
+                    label={label}
+                    group={insights.postLossStreak.find(g => g.label === label)}
+                    current={trades.length > 0 && label === currentStreakLabel}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mt-3">
+                Rendimiento del trade que viene justo después de cada racha. La racha actual va en vivo; el historial, del último cálculo.
+              </p>
+            </Block>
+
+            <Block icon={ShieldCheck} title="Disciplina">
+              {!disc || disc.daysWithData === 0 ? (
+                <p className="text-sm text-ink-900/40 dark:text-bone-100/40">
+                  Aún no hay post-sesiones con «¿seguiste el plan?» registrado.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-2xl font-semibold">
+                        {disc.avgScore ?? '—'}<span className="text-sm font-normal text-ink-900/40 dark:text-bone-100/40"> / 100</span>
+                      </p>
+                      <p className="text-xs text-ink-900/40 dark:text-bone-100/40">
+                        Media de {disc.daysWithData} {disc.daysWithData === 1 ? 'día registrado' : 'días registrados'} (histórico)
+                      </p>
+                    </div>
+                    {disc.daysWithData < INITIAL_DISCIPLINE_DAYS && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400">
+                        Datos iniciales
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm">
+                    Días con disciplina rota: <span className="font-semibold">{disc.brokenDaysCount}</span>
+                  </p>
+                  {disc.streakAlertActive && (
+                    <p className="text-sm text-loss">Alerta: hubo una racha de 3 o más días seguidos con disciplina rota.</p>
+                  )}
+                  {showDiscBroken && discBroken && (
+                    <div className="rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-medium">P&L medio por día</p>
+                        <ConfidenceBadge level={discBroken.deltaConfidence} unit="días" />
+                      </div>
+                      <p className="text-xs text-ink-900/60 dark:text-bone-100/60 mt-1">
+                        {discBroken.groups[0]?.label}: {fmt(discBroken.groups[0]?.avgPnl ?? 0)} ({discBroken.groups[0]?.sampleSize} días)
+                        {' · '}
+                        {discBroken.groups[1]?.label}: {fmt(discBroken.groups[1]?.avgPnl ?? 0)} ({discBroken.groups[1]?.sampleSize} días)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Block>
+
+            <Block icon={Smile} title="Última emoción">
+              {lastEmotion ? (
+                <p className="text-sm">
+                  <span className="font-semibold">{lastEmotion.emotion}</span>
+                  <span className="text-ink-900/40 dark:text-bone-100/40"> · {formatShortDate(lastEmotion.date)}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-ink-900/40 dark:text-bone-100/40">
+                  Aún no has registrado una emoción dominante en Mindset.
+                </p>
+              )}
+            </Block>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <CardTitle
+            icon={Clock}
+            title="Mejores horas"
+            subtitle={`Hora de entrada, horario de Madrid. Solo franjas con ${CONFIDENCE_THRESHOLDS.exploratory}+ operaciones.`}
+          />
+          {insights.byHour === null ? (
+            <p className="text-sm text-ink-900/40 dark:text-bone-100/40">
+              Todavía no hay datos por hora. Pulsa «Actualizar insights Nova» en Panel para generarlos.
+            </p>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-1">
+                  Mejores
+                </p>
+                {bestHours.length === 0 ? (
+                  <p className="text-sm text-ink-900/40 dark:text-bone-100/40">
+                    Ninguna franja con datos suficientes tiene saldo positivo.
+                  </p>
+                ) : (
+                  bestHours.map(i => <RankRow key={i.key} item={i} />)
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-1">
+                  Peores
+                </p>
+                {worstHours.length === 0 ? (
+                  <p className="text-sm text-ink-900/40 dark:text-bone-100/40">
+                    Ninguna franja con datos suficientes tiene saldo negativo.
+                  </p>
+                ) : (
+                  worstHours.map(i => <RankRow key={i.key} item={i} />)
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <p className="text-xs text-ink-900/40 dark:text-bone-100/40">
+        Los costes en $ no se pueden sumar entre tarjetas: un mismo trade puede estar en varios grupos a la vez
+        (por ejemplo, un martes en sesión de Asia).
+      </p>
+    </div>
+  )
+}

@@ -1,0 +1,154 @@
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-profit: 63 118 84;
+  --c-loss: 168 70 62;
+  --c-accent: 179 138 60;
+  --c-accent-light: 212 175 106;
+}
+
+.dark {
+  --c-profit: 111 190 138;
+  --c-loss: 226 112 104;
+  --c-accent: 212 175 106;
+  --c-accent-light: 235 217 168;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-bone-50 text-ink-900 dark:bg-ink-900 dark:text-bone-100 font-sans antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+::selection { background: rgba(212, 175, 106, 0.35); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { @apply bg-black/10 dark:bg-white/10 rounded-full; }
+
+.serif,
+.font-serif {
+  font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Botones con fondo accent: en oscuro el texto debe ser oscuro (el champán es un dorado claro) */
+.dark .bg-accent { color: #17130A; }
+
+/* Fondo del journal en oscuro: puntos y brillo champán muy tenue */
+.dark .app-bg {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 75% 0%, rgba(212, 175, 106, 0.07), transparent 70%),
+    radial-gradient(rgba(245, 243, 238, 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
+  background-attachment: fixed, fixed;
+}
+
+/* Tarjetas en oscuro: línea champán fina arriba y resplandor al pasar el ratón */
+.dark .tj-card {
+  box-shadow: inset 0 1px 0 rgba(212, 175, 106, 0.28);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.dark .tj-card:hover {
+  border-color: rgba(212, 175, 106, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(212, 175, 106, 0.5),
+    0 8px 32px rgba(212, 175, 106, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dark .tj-card { transition: none; }
+}
+
+/* Anillo de enfoque con el color de acento (enlaces y botones, al navegar con teclado) */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgb(var(--c-accent) / 0.7);
+  outline-offset: 2px;
+}
+
+/* Autocompletado de Chrome en oscuro */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #F5F3EE;
+  box-shadow: 0 0 0 1000px #17181B inset;
+  caret-color: #F5F3EE;
+}
+
+/* ===== Menú lateral de lujo — SIEMPRE oscuro en los dos temas =====
+   Sidebar.tsx envuelve el menú en un div con clase "dark" (más "contents",
+   que no ocupa espacio): así estas reglas ".dark ..." se aplican siempre,
+   aunque el resto de la app esté en modo claro. */
+.dark .tj-sidebar {
+  background-image:
+    radial-gradient(ellipse 130% 28% at 0% 0%, rgba(212, 175, 106, 0.14), transparent 70%),
+    linear-gradient(180deg, rgba(33, 35, 39, 0.92), rgba(17, 18, 20, 0.92));
+  border-right-color: transparent;
+}
+.dark .tj-sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(212, 175, 106, 0.65), rgba(212, 175, 106, 0.08) 35%, rgba(52, 54, 60, 0.6) 100%);
+  pointer-events: none;
+}
+.dark .tj-logo {
+  box-shadow: 0 0 24px rgba(212, 175, 106, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.tj-nav-item { position: relative; }
+.tj-nav-active::before {
+  content: '';
+  position: absolute;
+  left: -12px; top: 20%; bottom: 20%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: rgb(var(--c-accent));
+}
+.dark .tj-nav-active::before { box-shadow: 0 0 12px rgba(212, 175, 106, 0.85); }
+.dark .tj-nav-active {
+  background-image: linear-gradient(90deg, rgba(212, 175, 106, 0.17), rgba(212, 175, 106, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 106, 0.18);
+}
+.dark .tj-nav-active .tj-nav-icon { filter: drop-shadow(0 0 6px rgba(212, 175, 106, 0.7)); }
+.dark .tj-user { box-shadow: inset 0 1px 0 rgba(212, 175, 106, 0.2); }
+.tj-nav-scroll { scrollbar-width: none; }
+.tj-nav-scroll::-webkit-scrollbar { width: 0; height: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .tj-nav-item .tj-nav-icon { transition: none; transform: none !important; }
+}
+
+/* ===== Modo claro de lujo (área principal; el menú ya no cambia, es siempre oscuro) ===== */
+.app-bg {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 75% 0%, rgba(179, 138, 60, 0.14), transparent 70%),
+    radial-gradient(rgba(23, 24, 27, 0.06) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
+  background-attachment: fixed, fixed;
+}
+.tj-card {
+  box-shadow:
+    inset 0 1px 0 rgba(179, 138, 60, 0.35),
+    0 1px 2px rgba(23, 24, 27, 0.04),
+    0 14px 32px -16px rgba(130, 100, 40, 0.22);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.tj-card:hover {
+  border-color: rgba(179, 138, 60, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(179, 138, 60, 0.6),
+    0 2px 4px rgba(23, 24, 27, 0.05),
+    0 20px 40px -16px rgba(179, 138, 60, 0.35);
+}
+button.bg-accent, a.bg-accent {
+  box-shadow: 0 8px 20px -8px rgba(179, 138, 60, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.dark button.bg-accent, .dark a.bg-accent {
+  box-shadow: 0 8px 28px -8px rgba(212, 175, 106, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
