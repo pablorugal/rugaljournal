@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { db, auth } from './firebase'
 import type {
   Trade, Strategy, Checklist, HabitRule, HabitLog,
-  DailyBiasEntry, WeeklyOutlookEntry, UserSettings, Conversation, MindsetEntry, TradingAccount,
+  DailyBiasEntry, WeeklyOutlookEntry, UserSettings, Conversation, MindsetEntry, TradingAccount, CapitalFlow,
   WeeklyReviewEntry, JournalEntry,
 } from './types'
 
@@ -84,6 +84,7 @@ interface AppDataCtx {
   mindsetEntries: MindsetEntry[]; upsertMindsetEntry: (entry: Partial<MindsetEntry> & { date: string }) => void; deleteMindsetEntry: (id: string) => void
   journalEntries: JournalEntry[]; addJournalEntry: (date: string, content: string) => void; updateJournalEntry: (id: string, content: string) => void; deleteJournalEntry: (id: string) => void
   accounts: TradingAccount[]; upsertAccount: (a: TradingAccount) => void; deleteAccount: (id: string) => void
+  capitalFlows: CapitalFlow[]; upsertCapitalFlow: (f: CapitalFlow) => void; deleteCapitalFlow: (id: string) => void
   settings: UserSettings; updateSettings: (s: Partial<UserSettings>) => void
   conversations: Conversation[]; upsertConversation: (c: Conversation) => void; deleteConversation: (id: string) => void
   weeklyReviews: WeeklyReviewEntry[]; upsertWeeklyReview: (entry: Partial<WeeklyReviewEntry> & { id: string }) => void
@@ -169,6 +170,14 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     const q = query(collection(db, 'users', uid, 'accounts'), orderBy('created_at', 'desc'))
     const unsub = onSnapshot(q, snap => setAccounts(snap.docs.map(d => d.data() as TradingAccount)),
       err => console.error('Error al leer accounts:', err))
+    return () => unsub()
+  }, [uid])
+
+  const [capitalFlows, setCapitalFlows] = useState<CapitalFlow[]>([])
+  useEffect(() => {
+    const q = query(collection(db, 'users', uid, 'capitalFlows'), orderBy('date', 'desc'))
+    const unsub = onSnapshot(q, snap => setCapitalFlows(snap.docs.map(d => d.data() as CapitalFlow)),
+      err => console.error('Error al leer capitalFlows:', err))
     return () => unsub()
   }, [uid])
 
@@ -312,6 +321,14 @@ export function AppDataProvider({ children, uid }: { children: React.ReactNode; 
     },
     deleteAccount: (id) => {
       deleteDoc(doc(db, 'users', uid, 'accounts', id)).catch(err => console.error('Error al eliminar account:', err))
+    },
+
+    capitalFlows,
+    upsertCapitalFlow: (f) => {
+      setDoc(doc(db, 'users', uid, 'capitalFlows', f.id), cleanData(f)).catch(err => console.error('Error al guardar capitalFlow:', err))
+    },
+    deleteCapitalFlow: (id) => {
+      deleteDoc(doc(db, 'users', uid, 'capitalFlows', id)).catch(err => console.error('Error al eliminar capitalFlow:', err))
     },
 
     conversations,

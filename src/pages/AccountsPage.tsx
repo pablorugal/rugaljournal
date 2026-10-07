@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Wallet, Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp,
   Coins, LineChart, Repeat, Boxes, ListChecks, DollarSign, CalendarDays, FileText,
+  Download, Upload, Receipt, RotateCcw,
 } from 'lucide-react'
-import { useAppData } from '../contexts'
+import { useAppData, useTheme } from '../contexts'
 import { fmt, todayISO } from '../utils'
-import { getNetPnl, computeAccountStats, groupAccountsByPhase } from '../calculations'
-import type { TradingAccount, InstrumentType, AccountCategory, AccountPhase, AccountStatus } from '../types'
+import { getNetPnl, computeAccountStats, groupAccountsByPhase, computeCapitalFlowStats } from '../calculations'
+import type { TradingAccount, InstrumentType, AccountCategory, AccountPhase, AccountStatus, CapitalFlow, CapitalFlowType } from '../types'
 import { Card, SectionHeader, PillTabs, ChipButton, Field, inputCls, Modal, StatCard, MiniMetric, Block } from '../components/ui'
 import { InstrumentDropdown } from '../components/Filters'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { InfoTooltip } from '../components/InfoTooltip'
 
 /* ==================== HELPERS ==================== */
 interface AccountFormState {
@@ -428,9 +431,321 @@ function GroupCard({ group, accountsStats, onSelectAccount }: {
 /* ==================== PÁGINA PRINCIPAL ==================== */
 const INSTRUMENT_FILTERS: ('Todas' | InstrumentType)[] = ['Todas', 'Forex', 'Futuros', 'Acciones', 'Crypto', 'Opciones']
 
+/* ==================== FLUJOS DE CAPITAL (pestaña "Retiros") ==================== */
+const CAPITAL_FLOW_TYPES: CapitalFlowType[] = ['deposit', 'withdrawal', 'evaluation_fee', 'reset_fee', 'payout']
+
+const CAPITAL_FLOW_TYPE_LABELS: Record<CapitalFlowType, string> = {
+  deposit: 'Depósito',
+  withdrawal: 'Retiro',
+  evaluation_fee: 'Pago evaluación',
+  reset_fee: 'Pago reset',
+  payout: 'Payout (cobro)',
+}
+
+const CAPITAL_FLOW_TYPE_COLORS: Record<CapitalFlowType, string> = {
+  deposit: '#3B82F6',
+  withdrawal: '#A855F7',
+  evaluation_fee: '#EF4444',
+  reset_fee: '#F97316',
+  payout: '#22C55E',
+}
+
+const CAPITAL_FLOW_TYPE_ICONS: Record<CapitalFlowType, any> = {
+  deposit: Download,
+  withdrawal: Upload,
+  evaluation_fee: Receipt,
+  reset_fee: RotateCcw,
+  payout: DollarSign,
+}
+
+function CapitalFlowTypeBadge({ type }: { type: CapitalFlowType }) {
+  const Icon = CAPITAL_FLOW_TYPE_ICONS[type]
+  const color = CAPITAL_FLOW_TYPE_COLORS[type]
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-1 rounded-full shrink-0"
+      style={{ background: color + '1A', color }}
+    >
+      <Icon size={12} /> {CAPITAL_FLOW_TYPE_LABELS[type]}
+    </span>
+  )
+}
+
+interface CapitalFlowFormState {
+  account_id: string
+  type: CapitalFlowType
+  amount: string
+  date: string
+  note: string
+}
+
+function emptyCapitalFlowForm(accounts: TradingAccount[]): CapitalFlowFormState {
+  return { account_id: accounts[0]?.id || '', type: 'deposit', amount: '', date: todayISO(), note: '' }
+}
+
+function NewCapitalFlowModal({
+  open, onClose, accounts, onUpsert, editing,
+}: {
+  open: boolean
+  onClose: () => void
+  accounts: TradingAccount[]
+  onUpsert: (f: CapitalFlow) => void
+  editing: CapitalFlow | null
+}) {
+  const [form, setForm] = useState<CapitalFlowFormState>(emptyCapitalFlowForm(accounts))
+
+  useEffect(() => {
+    if (!open) return
+    if (editing) {
+      setForm({ account_id: editing.account_id, type: editing.type, amount: String(editing.amount), date: editing.date, note: editing.note || '' })
+    } else {
+      setForm(emptyCapitalFlowForm(accounts))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing])
+
+  const set = (key: keyof CapitalFlowFormState) => (e: any) => {
+    const value = e?.target ? e.target.value : e
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleSubmit = () => {
+    if (!form.account_id || !form.amount || Number(form.amount) <= 0) return
+    const now = new Date().toISOString()
+    const flow: CapitalFlow = {
+      id: editing?.id || crypto.randomUUID(),
+      account_id: form.account_id,
+      type: form.type,
+      amount: Math.abs(Number(form.amount)),
+      date: form.date,
+      note: form.note.trim() || undefined,
+      created_at: editing?.created_at || now,
+      updated_at: now,
+    }
+    onUpsert(flow)
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} widthClass="max-w-lg">
+      <h2 className="serif text-2xl font-semibold mb-1">{editing ? 'Editar movimiento' : 'Nuevo movimiento'}</h2>
+      <p className="text-sm text-ink-900/50 dark:text-bone-100/50 mb-6">Registra un depósito, retiro, pago de evaluación/reset o payout.</p>
+      <div className="space-y-4">
+        <Field label="Cuenta">
+          <select value={form.account_id} onChange={set('account_id')} className={inputCls}>
+            {accounts.length === 0 && <option value="">No hay cuentas creadas</option>}
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Tipo de movimiento">
+          <div className="grid grid-cols-2 gap-2">
+            {CAPITAL_FLOW_TYPES.map(t => (
+              <ChipButton key={t} active={form.type === t} onClick={() => setForm(prev => ({ ...prev, type: t }))}>
+                {CAPITAL_FLOW_TYPE_LABELS[t]}
+              </ChipButton>
+            ))}
+          </div>
+        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Importe"><input type="number" step="0.01" min="0" value={form.amount} onChange={set('amount')} placeholder="0.00" className={inputCls} /></Field>
+          <Field label="Fecha"><input type="date" value={form.date} onChange={set('date')} className={inputCls} /></Field>
+        </div>
+        <Field label="Nota (opcional)">
+          <input value={form.note} onChange={set('note')} placeholder="Ej: 2º intento de evaluación FTMO" className={inputCls} />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-3 pt-6">
+        <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5">Cancelar</button>
+        <button type="button" onClick={handleSubmit} className="px-6 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light">{editing ? 'Guardar cambios' : 'Añadir movimiento'}</button>
+      </div>
+    </Modal>
+  )
+}
+
+function CapitalFlowsView({
+  accounts, capitalFlows, onUpsert, onDelete,
+}: {
+  accounts: TradingAccount[]
+  capitalFlows: CapitalFlow[]
+  onUpsert: (f: CapitalFlow) => void
+  onDelete: (id: string) => void
+}) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const axisColor = isDark ? '#A8A196' : '#78716C'
+  const [accountFilter, setAccountFilter] = useState<'all' | string>('all')
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<CapitalFlow | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  const accountNameMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    accounts.forEach(a => { map[a.id] = a.name })
+    return map
+  }, [accounts])
+
+  const filteredFlows = useMemo(() => {
+    const base = accountFilter === 'all' ? capitalFlows : capitalFlows.filter(f => f.account_id === accountFilter)
+    return [...base].sort((a, b) => b.date.localeCompare(a.date))
+  }, [capitalFlows, accountFilter])
+
+  const propFirmAccountIds = useMemo(() => new Set(accounts.filter(a => a.category === 'Prop Firm').map(a => a.id)), [accounts])
+  const realAccountIds = useMemo(() => new Set(accounts.filter(a => a.category === 'Capital Real').map(a => a.id)), [accounts])
+
+  const propFirmFlows = useMemo(() => filteredFlows.filter(f => propFirmAccountIds.has(f.account_id)), [filteredFlows, propFirmAccountIds])
+  const realFlows = useMemo(() => filteredFlows.filter(f => realAccountIds.has(f.account_id)), [filteredFlows, realAccountIds])
+
+  const propFirmStats = useMemo(() => computeCapitalFlowStats(propFirmFlows), [propFirmFlows])
+  const realStats = useMemo(() => computeCapitalFlowStats(realFlows), [realFlows])
+
+  const monthlyChartData = useMemo(() => {
+    const map = new Map<string, { month: string; deposit: number; withdrawal: number; evaluation_fee: number; reset_fee: number; payout: number }>()
+    filteredFlows.forEach(f => {
+      const d = new Date(f.date + 'T00:00:00')
+      if (Number.isNaN(d.getTime())) return
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (!map.has(key)) map.set(key, { month: key, deposit: 0, withdrawal: 0, evaluation_fee: 0, reset_fee: 0, payout: 0 })
+      const entry = map.get(key)!
+      entry[f.type] += f.amount
+    })
+    return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month))
+  }, [filteredFlows])
+
+  const handleEdit = (f: CapitalFlow) => { setEditing(f); setShowModal(true) }
+  const handleNew = () => { setEditing(null); setShowModal(true) }
+  const confirmAndDelete = () => { if (confirmDeleteId) onDelete(confirmDeleteId); setConfirmDeleteId(null) }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)} className={`${inputCls} max-w-xs`}>
+          <option value="all">Todas las cuentas</option>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <button onClick={handleNew} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold shadow-soft hover:bg-accent-light">
+          <Plus size={16} /> Nuevo movimiento
+        </button>
+      </div>
+
+      {accounts.length === 0 ? (
+        <Card className="p-10 text-center">
+          <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Crea primero una cuenta para poder registrar movimientos de capital.</p>
+        </Card>
+      ) : (
+        <>
+          {propFirmFlows.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <h3 className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40">Prop Firm — Coste real de evaluaciones</h3>
+                <InfoTooltip text="Rentabilidad neta real = Payouts cobrados − Pagos de evaluación − Pagos de reset. Te dice si de verdad compensa intentar pasar evaluaciones." />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard label="Pagado en evaluaciones" value={fmt(propFirmStats.totalEvaluationFees)} positive={false} />
+                <StatCard label="Pagado en resets" value={fmt(propFirmStats.totalResetFees)} positive={false} />
+                <StatCard label="Cobrado en payouts" value={fmt(propFirmStats.totalPayouts)} positive />
+                <StatCard label="Rentabilidad neta real" value={`${propFirmStats.netRealProfit >= 0 ? '+' : ''}${fmt(propFirmStats.netRealProfit)}`} positive={propFirmStats.netRealProfit >= 0} />
+              </div>
+            </div>
+          )}
+
+          {realFlows.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs uppercase tracking-widest text-ink-900/40 dark:text-bone-100/40 mb-3">Capital Real — Depósitos y retiros</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatCard label="Total depositado" value={fmt(realStats.totalDeposits)} />
+                <StatCard label="Total retirado" value={fmt(realStats.totalWithdrawals)} />
+                <StatCard label="Capital neto invertido" value={fmt(realStats.netCapitalInvested)} />
+              </div>
+            </div>
+          )}
+
+          {filteredFlows.length === 0 ? (
+            <Card className="p-10 text-center">
+              <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Aún no hay movimientos registrados. Añade el primero con el botón de arriba.</p>
+            </Card>
+          ) : (
+            <>
+              <Card className="p-6 mb-6">
+                <div className="flex items-center mb-6">
+                  <h3 className="serif text-xl font-semibold">Flujos de capital por mes</h3>
+                  <InfoTooltip text="Depósitos, retiros, pagos de evaluación/reset y payouts agrupados por mes." />
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={monthlyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={axisColor} strokeOpacity={0.18} vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: axisColor }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: axisColor }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(value: any, name: any) => [fmt(Number(value)), CAPITAL_FLOW_TYPE_LABELS[name as CapitalFlowType] || String(name)]}
+                      contentStyle={{
+                        background: isDark ? '#14120F' : '#FFFFFF',
+                        border: `1px solid ${isDark ? '#2A2620' : '#E7E5E4'}`,
+                        borderRadius: 12,
+                        fontSize: 12,
+                        color: isDark ? '#F5F1E8' : '#0B0A08',
+                      }}
+                      labelStyle={{ color: axisColor, marginBottom: 2 }}
+                    />
+                    <Legend formatter={(value: any) => CAPITAL_FLOW_TYPE_LABELS[value as CapitalFlowType] || value} wrapperStyle={{ fontSize: 11 }} />
+                    {CAPITAL_FLOW_TYPES.map(t => (
+                      <Bar key={t} dataKey={t} stackId="flows" fill={CAPITAL_FLOW_TYPE_COLORS[t]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="serif text-xl font-semibold mb-4">Historial de movimientos ({filteredFlows.length})</h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  {filteredFlows.map(f => (
+                    <div key={f.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-black/5 dark:border-white/5 text-sm">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CapitalFlowTypeBadge type={f.type} />
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{accountNameMap[f.account_id] || 'Cuenta eliminada'}</p>
+                          <p className="text-xs text-ink-900/40 dark:text-bone-100/40">
+                            {new Date(f.date + 'T00:00:00').toLocaleDateString()}{f.note ? ` · ${f.note}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`font-semibold ${f.type === 'payout' || f.type === 'deposit' ? 'text-profit' : 'text-loss'}`}>
+                          {fmt(f.amount)}
+                        </span>
+                        <button onClick={() => handleEdit(f)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><Pencil size={14} /></button>
+                        <button onClick={() => setConfirmDeleteId(f.id)} className="p-1.5 rounded-lg hover:bg-loss/10 text-loss"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+        </>
+      )}
+
+      <NewCapitalFlowModal open={showModal} onClose={() => setShowModal(false)} accounts={accounts} onUpsert={onUpsert} editing={editing} />
+
+      <Modal open={!!confirmDeleteId} onClose={() => setConfirmDeleteId(null)} widthClass="max-w-md">
+        <div className="text-center py-6">
+          <div className="w-14 h-14 rounded-full bg-loss/10 text-loss flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={26} />
+          </div>
+          <h2 className="serif text-xl font-semibold mb-2">¿Eliminar este movimiento?</h2>
+          <p className="text-sm text-ink-900/50 dark:text-bone-100/50 mb-6">Esta acción no se puede deshacer.</p>
+          <div className="flex justify-center gap-3">
+            <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2.5 rounded-lg border border-black/10 dark:border-white/10 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5">Cancelar</button>
+            <button onClick={confirmAndDelete} className="px-5 py-2.5 rounded-lg bg-loss text-white text-sm font-semibold hover:opacity-90">Sí, eliminar</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
 export default function AccountsPage() {
-  const { accounts, trades, settings } = useAppData()
-  const [viewMode, setViewMode] = useState<'accounts' | 'groups'>('accounts')
+  const { accounts, trades, settings, capitalFlows, upsertCapitalFlow, deleteCapitalFlow } = useAppData()
+  const [viewMode, setViewMode] = useState<'accounts' | 'groups' | 'flows'>('accounts')
   const [statusTab, setStatusTab] = useState<'active' | 'history'>('active')
   const [instrumentFilter, setInstrumentFilter] = useState<'Todas' | InstrumentType>('Todas')
   const [showNewModal, setShowNewModal] = useState(false)
@@ -496,17 +811,23 @@ export default function AccountsPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div className="flex items-center gap-3 flex-wrap">
-          <PillTabs tabs={[{ id: 'active', label: 'Activas' }, { id: 'history', label: 'Histórico' }]} active={statusTab} onChange={v => setStatusTab(v as any)} />
-          <PillTabs tabs={[{ id: 'accounts', label: 'Por cuenta' }, { id: 'groups', label: 'Por grupo' }]} active={viewMode} onChange={v => setViewMode(v as any)} />
+          {viewMode !== 'flows' && (
+            <PillTabs tabs={[{ id: 'active', label: 'Activas' }, { id: 'history', label: 'Histórico' }]} active={statusTab} onChange={v => setStatusTab(v as any)} />
+          )}
+          <PillTabs tabs={[{ id: 'accounts', label: 'Por cuenta' }, { id: 'groups', label: 'Por grupo' }, { id: 'flows', label: 'Retiros' }]} active={viewMode} onChange={v => setViewMode(v as any)} />
         </div>
-        <InstrumentDropdown
-          value={instrumentFilter}
-          onChange={v => setInstrumentFilter(v as 'Todas' | InstrumentType)}
-          options={INSTRUMENT_FILTERS.map(f => ({ value: f, label: f }))}
-        />
+        {viewMode !== 'flows' && (
+          <InstrumentDropdown
+            value={instrumentFilter}
+            onChange={v => setInstrumentFilter(v as 'Todas' | InstrumentType)}
+            options={INSTRUMENT_FILTERS.map(f => ({ value: f, label: f }))}
+          />
+        )}
       </div>
 
-      {filtered.length === 0 ? (
+      {viewMode === 'flows' ? (
+        <CapitalFlowsView accounts={accounts} capitalFlows={capitalFlows} onUpsert={upsertCapitalFlow} onDelete={deleteCapitalFlow} />
+      ) : filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <p className="text-sm text-ink-900/40 dark:text-bone-100/40">No hay cuentas en esta vista. Crea una nueva para empezar.</p>
         </Card>

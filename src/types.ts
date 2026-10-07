@@ -143,6 +143,20 @@ export interface TradingAccount {
   created_at: string
   updated_at: string
 }
+
+/* ==================== FLUJOS DE CAPITAL (depósitos, retiros, evaluaciones, payouts) ==================== */
+export type CapitalFlowType = 'deposit' | 'withdrawal' | 'evaluation_fee' | 'reset_fee' | 'payout'
+
+export interface CapitalFlow {
+  id: string
+  account_id: string
+  type: CapitalFlowType
+  amount: number
+  date: string
+  note?: string
+  created_at: string
+  updated_at: string
+}
 export interface WeeklyReviewEntry {
   id: string
   week_start: string

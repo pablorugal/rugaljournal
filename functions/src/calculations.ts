@@ -122,6 +122,41 @@ export function computePerformanceScore(m: ReturnType<typeof computeMetrics>) {
   return Math.round(Math.min(100, Math.max(0, total)));
 }
 
+/**
+ * Version "gemela" de computePerformanceScore que, ademas del total, expone
+ * el desglose de los 3 componentes que lo forman. NO SE USA en el calculo
+ * oficial que alimenta el Panel Nova ni el job diario (esos siguen llamando
+ * a computePerformanceScore sin cambios) -- esta funcion es solo para el
+ * widget visual de desglose en Analytics. Misma formula, mismos pesos.
+ */
+export interface PerformanceScoreBreakdown {
+  total: number
+  winRateScore: number
+  winRateMax: number
+  profitFactorScore: number
+  profitFactorMax: number
+  consistencyScore: number
+  consistencyMax: number
+}
+
+export function computePerformanceScoreBreakdown(m: ReturnType<typeof computeMetrics>): PerformanceScoreBreakdown {
+  const w = PERFORMANCE_SCORE_WEIGHTS;
+  const wrScore = (Math.min(Math.max(m.winRate, 0), 100) / 100) * w.winRate;
+  const pf = m.profitFactor === Infinity ? 3 : m.profitFactor;
+  const pfScore = Math.min(Math.max(pf, 0) / 3, 1) * w.profitFactor;
+  const consistencyScore = Math.min(m.tradingDays / 20, 1) * w.consistency;
+  const total = Math.round(Math.min(100, Math.max(0, wrScore + pfScore + consistencyScore)));
+  return {
+    total,
+    winRateScore: +wrScore.toFixed(1),
+    winRateMax: w.winRate,
+    profitFactorScore: +pfScore.toFixed(1),
+    profitFactorMax: w.profitFactor,
+    consistencyScore: +consistencyScore.toFixed(1),
+    consistencyMax: w.consistency,
+  };
+}
+
 export function computeExpectancy(trades: Trade[], settings: UserSettings) {
   if (trades.length === 0) return 0;
   const total = trades.reduce((acc, t) => acc + getNetPnl(t, settings), 0);
@@ -140,6 +175,65 @@ export function computeMaxDrawdown(equityCurve: { date: string; equity: number }
     peak = Math.max(peak, p.equity); maxDD = Math.min(maxDD, p.equity - peak);
   }
   return maxDD;
+}
+
+/* ==================== DESVIACIÓN ESTÁNDAR + SHARPE RATIO ==================== */
+/**
+ * Calcula la volatilidad del P&L diario (desviación estándar muestral)
+ * y el Sharpe Ratio anualizado (asumiendo 252 días de trading/año).
+ * Se basa en los incrementos día a día de la equity curve (P&L diario en $),
+ * consistente con el resto de métricas de riesgo de la app (en $, no en %).
+ */
+export interface StdDevSharpeResult {
+  stdDev: number
+  sharpe: number
+}
+
+export function computeStdDevSharpe(equityCurve: { date: string; equity: number }[]): StdDevSharpeResult {
+  if (equityCurve.length < 2) return { stdDev: 0, sharpe: 0 };
+  const dailyPnls: number[] = [];
+  let prev = 0;
+  for (const p of equityCurve) {
+    dailyPnls.push(p.equity - prev);
+    prev = p.equity;
+  }
+  const n = dailyPnls.length;
+  const mean = dailyPnls.reduce((a, b) => a + b, 0) / n;
+  const variance = dailyPnls.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1 > 0 ? n - 1 : 1);
+  const stdDev = Math.sqrt(variance);
+  const sharpe = stdDev > 0 ? +((mean / stdDev) * Math.sqrt(252)).toFixed(2) : 0;
+  return { stdDev: +stdDev.toFixed(2), sharpe };
+}
+
+/* ==================== RACHAS (STREAKS) DE TRADES GANADORES/PERDEDORES ==================== */
+export interface StreakResult {
+  currentStreak: number // siempre positivo; usar currentStreakType para saber si es de wins o losses
+  currentStreakType: "win" | "loss" | "none"
+  longestWinStreak: number
+  longestLossStreak: number
+}
+
+export function computeStreaks(trades: Trade[], settings: UserSettings): StreakResult {
+  if (trades.length === 0) {
+    return { currentStreak: 0, currentStreakType: "none", longestWinStreak: 0, longestLossStreak: 0 };
+  }
+  const sorted = [...trades].sort((a, b) => new Date(a.exit_datetime).getTime() - new Date(b.exit_datetime).getTime());
+  let longestWin = 0, longestLoss = 0, curWin = 0, curLoss = 0;
+  for (const t of sorted) {
+    const cls = classifyTrade(t, settings);
+    if (cls === "win") {
+      curWin++; curLoss = 0; longestWin = Math.max(longestWin, curWin);
+    } else if (cls === "loss") {
+      curLoss++; curWin = 0; longestLoss = Math.max(longestLoss, curLoss);
+    } else {
+      curWin = 0; curLoss = 0; // breakeven corta ambas rachas
+    }
+  }
+  let currentStreak = 0;
+  let currentStreakType: "win" | "loss" | "none" = "none";
+  if (curWin > 0) { currentStreak = curWin; currentStreakType = "win"; }
+  else if (curLoss > 0) { currentStreak = curLoss; currentStreakType = "loss"; }
+  return { currentStreak, currentStreakType, longestWinStreak: longestWin, longestLossStreak: longestLoss };
 }
 
 /* ==================== FILTROS (Estrategia / Instrumento / Cuenta) ==================== */
@@ -970,6 +1064,39 @@ export function computeAccountStats(account: TradingAccount, trades: Trade[], se
   }
 
   return {tradesCount: accountTrades.length, netPnl: +netPnl.toFixed(2), balance: +balance.toFixed(2), pnlPct, progressPct};
+}
+
+/* ==================== ESTADÍSTICAS DE FLUJOS DE CAPITAL ==================== */
+export interface CapitalFlowStats {
+  totalDeposits: number
+  totalWithdrawals: number
+  totalEvaluationFees: number
+  totalResetFees: number
+  totalPayouts: number
+  netCapitalInvested: number
+  netRealProfit: number
+}
+
+export function computeCapitalFlowStats(
+  flows: { type: "deposit" | "withdrawal" | "evaluation_fee" | "reset_fee" | "payout"; amount: number }[]
+): CapitalFlowStats {
+  let totalDeposits = 0, totalWithdrawals = 0, totalEvaluationFees = 0, totalResetFees = 0, totalPayouts = 0;
+  flows.forEach((f) => {
+    if (f.type === "deposit") totalDeposits += f.amount;
+    else if (f.type === "withdrawal") totalWithdrawals += f.amount;
+    else if (f.type === "evaluation_fee") totalEvaluationFees += f.amount;
+    else if (f.type === "reset_fee") totalResetFees += f.amount;
+    else if (f.type === "payout") totalPayouts += f.amount;
+  });
+  return {
+    totalDeposits: +totalDeposits.toFixed(2),
+    totalWithdrawals: +totalWithdrawals.toFixed(2),
+    totalEvaluationFees: +totalEvaluationFees.toFixed(2),
+    totalResetFees: +totalResetFees.toFixed(2),
+    totalPayouts: +totalPayouts.toFixed(2),
+    netCapitalInvested: +(totalDeposits - totalWithdrawals).toFixed(2),
+    netRealProfit: +(totalPayouts - totalEvaluationFees - totalResetFees).toFixed(2),
+  };
 }
 
 export function getAccountGroupLabel(account: TradingAccount): string {

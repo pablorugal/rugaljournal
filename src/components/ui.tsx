@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { UploadCloud, X } from 'lucide-react'
 import type { Direction } from '../types'
+import { InfoTooltip } from './InfoTooltip'
 
 export function Card({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return <div onClick={onClick} className={`tj-card bg-white dark:bg-ink-800 border border-black/5 dark:border-ink-600 rounded-2xl shadow-soft ${className}`}>{children}</div>
@@ -229,18 +230,21 @@ export function BarRow({ item, maxAbs }: { item: BarRowItem; maxAbs: number }) {
   )
 }
 
-export function RankedTableCard({ title, items, right }: { title: string; items: BarRowItem[]; right?: React.ReactNode }) {
+export function RankedTableCard({ title, items, right, info, scrollHeight }: { title: string; items: BarRowItem[]; right?: React.ReactNode; info?: string; scrollHeight?: number }) {
   const maxAbs = Math.max(1, ...items.map(i => Math.abs(i.value)))
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h3 className="serif text-xl font-semibold">{title}</h3>
+        <h3 className="serif text-xl font-semibold flex items-center">{title}{info && <InfoTooltip text={info} />}</h3>
         {right}
       </div>
       {items.length === 0 ? (
         <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Aún no hay datos suficientes.</p>
       ) : (
-        <div className="divide-y divide-black/5 dark:divide-white/5">
+        <div
+          className="divide-y divide-black/5 dark:divide-white/5 overflow-y-auto pr-1"
+          style={scrollHeight ? { height: `${scrollHeight}px` } : undefined}
+        >
           {items.map(item => <BarRow key={item.key} item={item} maxAbs={maxAbs} />)}
         </div>
       )}
