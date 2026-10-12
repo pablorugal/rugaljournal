@@ -70,7 +70,7 @@ export default function LandingPage() {
           <button onClick={() => goTo('inicio')} className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#D4AF6A] text-base font-extrabold text-[#17130A]">T</span>
             <span className="text-lg font-extrabold tracking-tight">
-              Tu<span className="text-[#D4AF6A]">Journal</span>
+              Trade<span className="text-[#D4AF6A]">lic</span>
             </span>
           </button>
           <nav className="hidden items-center gap-8 text-sm font-medium text-[#BDB9B0] md:flex">
@@ -213,7 +213,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-[#34363C] px-6 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-xs text-[#BDB9B0] md:flex-row">
-          <span>© {new Date().getFullYear()} TuJournal</span>
+          <span>© {new Date().getFullYear()} Tradelic</span>
           <span>Nova analiza tus datos de trading; no ofrece asesoramiento de inversión.</span>
         </div>
       </footer>

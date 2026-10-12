@@ -18,11 +18,11 @@ export function SectionHeader({ eyebrow, title, subtitle, right }: { eyebrow: st
     </div>
   )
 }
-export function StatCard({ label, value, sub, positive }: { label: string; value: string; sub?: string; positive?: boolean | null }) {
+export function StatCard({ label, value, sub, positive, info }: { label: string; value: string; sub?: string; positive?: boolean | null; info?: string }) {
   const color = positive === undefined || positive === null ? 'text-ink-900 dark:text-bone-100' : positive ? 'text-profit' : 'text-loss'
   return (
     <Card className="p-5">
-      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-900/50 dark:text-bone-100/50 mb-2.5">{label}</p>
+      <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-900/50 dark:text-bone-100/50 mb-2.5 flex items-center">{label}{info && <InfoTooltip text={info} />}</p>
       <p className={`text-2xl font-extrabold tracking-tight tabular-nums ${color}`}>{value}</p>
       {sub && <p className="text-xs text-ink-900/40 dark:text-bone-100/40 mt-1">{sub}</p>}
     </Card>
@@ -120,16 +120,35 @@ export function ScreenshotUploader({ files, onChange }: { files: File[]; onChang
     const valid = Array.from(fileList).filter(f => f.size <= 5 * 1024 * 1024 && /image\/(png|jpe?g)/.test(f.type))
     onChange([...files, ...valid])
   }
+  const handlePaste = (e: any) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const pasted: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) pasted.push(file)
+      }
+    }
+    if (pasted.length > 0) {
+      e.preventDefault()
+      const dt = new DataTransfer()
+      pasted.forEach(f => dt.items.add(f))
+      handleFiles(dt.files)
+    }
+  }
   return (
     <div onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-      className={`border-2 border-dashed rounded-xl p-5 text-center transition ${dragOver ? 'border-accent/60 bg-accent/5' : 'border-black/10 dark:border-ink-600'}`}>
+      className={`border-2 border-dashed rounded-xl p-5 text-center transition outline-none focus:ring-2 focus:ring-accent/40 ${dragOver ? 'border-accent/60 bg-accent/5' : 'border-black/10 dark:border-ink-600'}`} onPaste={handlePaste} tabIndex={0}>
       <UploadCloud className="mx-auto mb-2 text-ink-900/30 dark:text-bone-100/30" size={20} />
       <p className="text-xs text-ink-900/50 dark:text-bone-100/50">Arrastra capturas aquí o</p>
       <label className="text-accent text-xs font-medium cursor-pointer hover:underline">
         selecciona archivos
         <input type="file" accept="image/png,image/jpeg" multiple hidden onChange={e => handleFiles(e.target.files)} />
       </label>
+      <p className="text-[11px] text-ink-900/30 dark:text-bone-100/30 mt-1">o pega con Ctrl+V</p>
       {files.length > 0 && <p className="text-[11px] mt-2 text-ink-900/50 dark:text-bone-100/50">{files.length} imagen(es) seleccionada(s)</p>}
     </div>
   )

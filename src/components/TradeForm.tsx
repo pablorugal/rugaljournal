@@ -4,7 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../firebase'
 import { useAppData, useAuth } from '../contexts'
 import { fmt } from '../utils'
-import { calculateAutoPnl } from '../calculations'
+import { calculateAutoPnl, calculateAutoRisk } from '../calculations'
 import type { Trade, Direction, InstrumentType } from '../types'
 import { Card, Field, inputCls, DirectionToggle, Block, Modal, ScreenshotUploader } from './ui'
 import { extractTrades, type ExtractedTradeData } from '../lib/aiTradeExtractor'
@@ -99,6 +99,7 @@ function AITradeModal({ open, onClose, onExtracted }: { open: boolean; onClose: 
         exit_price: p.exit_price,
         position_size: p.position_size,
         pnl: p.pnl,
+        risk_amount: p.risk_amount,
         stop_loss: p.stop_loss,
         take_profit: p.take_profit,
         entry_datetime: p.entry_datetime,
@@ -210,6 +211,24 @@ export function TradeForm({ onSaved }: { onSaved: () => void }) {
     const valid = Array.from(fileList).filter(f => f.size <= 5 * 1024 * 1024 && /image\/(png|jpe?g)/.test(f.type))
     setFiles(prev => [...prev, ...valid])
   }
+  const handlePaste = (e: any) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const pasted: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) pasted.push(file)
+      }
+    }
+    if (pasted.length > 0) {
+      e.preventDefault()
+      const dt = new DataTransfer()
+      pasted.forEach(f => dt.items.add(f))
+      handleFiles(dt.files)
+    }
+  }
   const clearForm = () => { setForm(emptyForm); setFiles([]); setUseFreeSetup(false) }
   const handleCreateStrategy = () => {
     if (!newStrategyName.trim()) return
@@ -232,6 +251,14 @@ export function TradeForm({ onSaved }: { onSaved: () => void }) {
     exit_price: Number(form.exit_price) || 0,
     position_size: Number(form.position_size) || 0,
   }), [form.instrument_type, form.symbol, form.direction, form.entry_price, form.exit_price, form.position_size])
+
+  const autoRisk = useMemo(() => calculateAutoRisk({
+    instrument_type: form.instrument_type,
+    symbol: form.symbol,
+    entry_price: Number(form.entry_price) || 0,
+    stop_loss: Number(form.stop_loss) || 0,
+    position_size: Number(form.position_size) || 0,
+  }), [form.instrument_type, form.symbol, form.entry_price, form.stop_loss, form.position_size])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -256,11 +283,12 @@ export function TradeForm({ onSaved }: { onSaved: () => void }) {
     }
 
     const finalPnl = form.pnl.trim() !== '' ? Number(form.pnl) : autoPnl
+    const finalRisk = form.risk_amount.trim() !== '' ? Number(form.risk_amount) : autoRisk
 
     const trade: Trade = {
       id: tradeId, symbol: form.symbol.toUpperCase(), instrument_type: form.instrument_type, direction: form.direction,
       entry_price: Number(form.entry_price) || 0, exit_price: Number(form.exit_price) || 0, position_size: Number(form.position_size) || 0,
-      pnl: finalPnl, risk_amount: Number(form.risk_amount) || undefined, stop_loss: Number(form.stop_loss) || undefined,
+      pnl: finalPnl, risk_amount: finalRisk || undefined, stop_loss: Number(form.stop_loss) || undefined,
       take_profit: Number(form.take_profit) || undefined, entry_datetime: form.entry_datetime || new Date().toISOString(),
       exit_datetime: form.exit_datetime || new Date().toISOString(), strategy_id: useFreeSetup ? null : (form.strategy_id || null),
       custom_setup: useFreeSetup ? form.custom_setup : undefined, checklist_id: form.checklist_id || null,
@@ -318,7 +346,12 @@ export function TradeForm({ onSaved }: { onSaved: () => void }) {
                 Vacío = cálculo automático (<strong>{fmt(autoPnl)}</strong>). Rellénalo solo si quieres forzar otro valor.
               </p>
             </Field>
-            <Field label="Riesgo $"><input type="number" step="0.01" value={form.risk_amount} onChange={set('risk_amount')} className={inputCls} /></Field>
+            <Field label="Riesgo $">
+              <input type="number" step="0.01" placeholder={`Auto: ${fmt(autoRisk)}`} value={form.risk_amount} onChange={set('risk_amount')} className={inputCls} />
+              <p className="text-[11px] text-ink-900/40 dark:text-bone-100/40 mt-1">
+                Vacío = cálculo automático a partir del Stop Loss (<strong>{fmt(autoRisk)}</strong>). Rellénalo solo si quieres forzar otro valor.
+              </p>
+            </Field>
             <Field label="Stop Loss"><input type="number" step="0.01" value={form.stop_loss} onChange={set('stop_loss')} className={inputCls} /></Field>
             <Field label="Take Profit"><input type="number" step="0.01" value={form.take_profit} onChange={set('take_profit')} className={inputCls} /></Field>
           </div>
@@ -379,14 +412,14 @@ export function TradeForm({ onSaved }: { onSaved: () => void }) {
         <Block icon={Paperclip} title="Adjuntos y Notas">
           <div onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-            className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition ${dragOver ? 'border-accent bg-accent/5' : 'border-black/10 dark:border-white/10'}`}>
+            className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition outline-none focus:ring-2 focus:ring-accent/40 ${dragOver ? 'border-accent bg-accent/5' : 'border-black/10 dark:border-white/10'}`} onPaste={handlePaste} tabIndex={0}>
             <UploadCloud className="mx-auto mb-2 text-ink-900/30 dark:text-bone-100/30" />
             <p className="text-sm text-ink-900/50 dark:text-bone-100/50">Arrastra tus screenshots aquí o</p>
             <label className="text-accent text-sm font-medium cursor-pointer hover:underline">
               selecciona archivos
               <input type="file" accept="image/png,image/jpeg" multiple hidden onChange={e => handleFiles(e.target.files)} />
             </label>
-            <p className="text-[11px] text-ink-900/30 dark:text-bone-100/30 mt-1">PNG/JPG hasta 5MB</p>
+            <p className="text-[11px] text-ink-900/30 dark:text-bone-100/30 mt-1">PNG/JPG hasta 5MB · Ctrl+V para pegar</p>
             {files.length > 0 && <p className="text-xs mt-3 text-accent">{files.length} archivo(s) seleccionado(s)</p>}
           </div>
           <Field label="Notas"><textarea value={form.notes} onChange={set('notes')} rows={4} placeholder="¿Qué viste? ¿Cómo gestionaste la operación?" className={inputCls} /></Field>

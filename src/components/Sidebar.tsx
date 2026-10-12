@@ -17,7 +17,7 @@ const mainNav = [
   { to: '/strategies', label: 'Estrategias', icon: BookOpen },
   { to: '/weekly-review', label: 'Resumen Semanal', icon: ClipboardList },
   { to: '/mindset', label: 'Mindset', icon: Brain },
-  { to: '/zen', label: 'ZEN', icon: Sparkles },
+  { to: '/ritual', label: 'Ritual', icon: Sparkles },
   { to: '/nova-panel', label: 'Panel Nova', icon: Activity, badge: 'IA' },
   { to: '/ai', label: 'Nova IA', icon: Bot, badge: 'IA' },
 ]
@@ -113,8 +113,16 @@ export function Sidebar() {
       <aside className="tj-sidebar w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-ink-900/80 border-r border-ink-600/60 backdrop-blur">
         <div className="px-5 pt-6 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="tj-logo w-9 h-9 rounded-xl bg-gradient-to-br from-accent-light to-accent flex items-center justify-center text-ink-900 font-extrabold">T</div>
-            <span className="text-xl font-bold tracking-tight text-bone-100">Tu<span className="text-accent">Journal</span></span>
+            <div className="tj-logo w-9 h-9 rounded-xl bg-gradient-to-br from-accent-light to-accent flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 50 L36 24 L36 50" stroke="#17181B" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <line x1="22" y1="24" x2="50" y2="24" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="40" y1="50" x2="52" y2="38" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="46" y1="38" x2="52" y2="38" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="52" y1="38" x2="52" y2="44" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span className="text-xl font-bold tracking-tight text-bone-100">Tradelic</span>
           </div>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-bone-100/40 mt-3 ml-0.5">Cockpit de Rendimiento</p>
         </div>

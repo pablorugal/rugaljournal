@@ -16,6 +16,12 @@ REGLAS GENERALES:
 - Las fechas devuélvelas SIEMPRE en formato exacto "YYYY-MM-DDTHH:mm" (24 horas), convirtiéndolas desde cualquier formato original (ejemplo: "08-09-2026 07:31:45" -> "2026-09-08T07:31"). Si no hay fecha visible, devuelve null.
 - Si el símbolo tiene una barra "/" (ej: "EUR/USD"), quítala (-> "EURUSD").
 
+HERRAMIENTA DE POSICIÓN DE TRADINGVIEW (Long/Short Position Tool):
+Si la imagen muestra una caja de posición dibujada sobre el gráfico (el overlay nativo "Long Position" / "Short Position" de TradingView), identifícala por estos elementos característicos: una etiqueta "Stop: N" cerca de un extremo de la caja, una etiqueta "Target: N" cerca del extremo opuesto, y opcionalmente "Risk/reward ratio: N" y "Amount: N". Los números junto a "Stop" y "Target" son DISTANCIAS EN PUNTOS, no precios absolutos -- no los uses directamente como stop_loss/take_profit.
+En el eje de precio (lado derecho del gráfico) busca los niveles de precio resaltados que delimitan la caja: normalmente hay un precio arriba, uno abajo, y un precio intermedio (a menudo a la altura de donde aparece "Risk/reward ratio" o el borde vertical central de la caja). Ese precio intermedio es el entry_price. De los otros dos, identifica cuál es stop_loss y cuál es take_profit comparando la distancia de cada uno al entry_price con los números de "Stop:" y "Target:" ya detectados (el extremo cuya distancia coincide con "Stop:" es el stop_loss; el que coincide con "Target:" es el take_profit).
+Si el stop_loss queda POR ENCIMA del entry_price y el take_profit POR DEBAJO, es una operación "short". Si es al revés, es "long".
+Si no logras identificar con confianza el precio intermedio (entry_price), déjalo como null en vez de adivinar -- es preferible pedir ese dato al usuario que inventarlo.
+
 RESULTADO ECONÓMICO (sigue el caso que aplique):
 - Si en el origen aparece SOLO un resultado final en dinero (profit/loss/P&L total, como en la mayoría de capturas de un solo trade), ponlo en el campo "pnl" y deja "gross_pnl", "commission" y "swap" en null.
 - Si en el origen aparecen columnas separadas de "Beneficio", "Comisión" e "Intercambio/Swap" (típico de exportaciones de MetaTrader), NO las sumes tú: coloca cada una en su campo por separado ("gross_pnl" = Beneficio, "commission" = Comisión, "swap" = Intercambio) y deja "pnl" en null.

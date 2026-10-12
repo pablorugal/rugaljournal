@@ -618,8 +618,8 @@ export default function AnalyticsPage() {
                   <StatCard label="Avg Loss" value={fmt(avgLoss)} positive={false} />
                   <StatCard label="W/L Ratio" value={avgLoss !== 0 ? Math.abs(avgWin / avgLoss).toFixed(2) : '∞'} />
                   <StatCard label="Breakevens" value={String(metrics.breakevens)} />
-                  <StatCard label="Desv. Estándar (diaria)" value={fmt(stdDevSharpe.stdDev)} />
-                  <StatCard label="Sharpe Ratio" value={stdDevSharpe.sharpe.toFixed(2)} positive={stdDevSharpe.sharpe >= 0} />
+                  <StatCard label="Desv. Estándar (diaria)" value={fmt(stdDevSharpe.stdDev)} info="Mide cuánto varían tus resultados diarios respecto a tu media. Un valor más bajo indica resultados más consistentes de un día a otro." />
+                  <StatCard label="Sharpe Ratio" value={stdDevSharpe.sharpe.toFixed(2)} positive={stdDevSharpe.sharpe >= 0} info="Mide tu rentabilidad ajustada al riesgo asumido (anualizada). Cuanto más alto, mejor relación entre lo que ganas y la volatilidad de tus resultados." />
                 </div>
               )}
 
@@ -627,12 +627,14 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <StatCard
                     label="Avg Winning Day"
+                    info="Promedio de P&L en los días donde terminaste en positivo."
                     value={fmt(avgDayWinLoss.avgWinDay)}
                     sub={`${avgDayWinLoss.winDaysCount} días`}
                     positive
                   />
                   <StatCard
                     label="Avg Losing Day"
+                    info="Promedio de P&L en los días donde terminaste en negativo."
                     value={fmt(avgDayWinLoss.avgLossDay)}
                     sub={`${avgDayWinLoss.lossDaysCount} días`}
                     positive={false}
@@ -666,7 +668,7 @@ export default function AnalyticsPage() {
               {isVisible('rolling') && (
                 <Card className="p-6">
                   <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-                    <h3 className="serif text-xl font-semibold">Rolling Metrics</h3>
+                    <h3 className="serif text-xl font-semibold flex items-center">Rolling Metrics<InfoTooltip text="Muestra la evolución de tu P&L acumulado y tu Expectancy calculados sobre una ventana móvil de tus últimas operaciones, para detectar si estás mejorando o empeorando recientemente." /></h3>
                     <div className="flex gap-2">
                       {ROLLING_WINDOWS.map(w => (
                         <ChipButton key={w} active={rollingWindow === w} onClick={() => setRollingWindow(w)}>
@@ -771,6 +773,7 @@ export default function AnalyticsPage() {
               {isVisible('bestWorstHour') && (
                 <RankedTableCard
                   title="Mejor / peor hora"
+                  info="Compara el rendimiento de tus operaciones según la hora de entrada o salida, para detectar tus mejores y peores franjas horarias."
                   items={hourItems}
                   scrollHeight={400}
                   right={
@@ -783,13 +786,13 @@ export default function AnalyticsPage() {
               )}
 
               {isVisible('bestWorstWeekday') && (
-                <RankedTableCard title="Mejor / peor día de la semana" items={weekdayItems} scrollHeight={400} />
+                <RankedTableCard title="Mejor / peor día de la semana" info="Compara tu rendimiento según el día de la semana en que operas, para detectar tus mejores y peores días." items={weekdayItems} scrollHeight={400} />
               )}
               </div>
 
               {isVisible('heatmap') && (
                 <Card className="p-6">
-                  <h3 className="serif text-xl font-semibold mb-6">Frecuencia y rendimiento por día y hora</h3>
+                  <h3 className="serif text-xl font-semibold mb-6 flex items-center">Frecuencia y rendimiento por día y hora<InfoTooltip text="Cruza el día de la semana y la hora para mostrarte en qué franjas concretas obtienes mejor o peor resultado, combinando frecuencia y P&L." /></h3>
                   {heatmapCells.every(c => c.count === 0) ? (
                     <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Aún no hay datos suficientes.</p>
                   ) : (
@@ -883,7 +886,7 @@ export default function AnalyticsPage() {
             <div className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
               {isVisible('symbols') && (
-                <RankedTableCard title="Símbolos operados" items={symbolItems} />
+                <RankedTableCard title="Símbolos operados" info="Reparto de tu rendimiento (P&L, win rate, expectancy) entre los distintos símbolos que operas." items={symbolItems} />
               )}
 
               {isVisible('symbolMetrics') && (
@@ -934,19 +937,19 @@ export default function AnalyticsPage() {
 
               {isVisible('matrix') && (
                 <Card className="p-6">
-                  <h3 className="serif text-xl font-semibold mb-6">Matriz símbolo × sesión</h3>
+                  <h3 className="serif text-xl font-semibold mb-6 flex items-center">Matriz símbolo × sesión<InfoTooltip text="Cruza cada símbolo que operas con la sesión de mercado en la que lo operas, para ver en qué combinaciones obtienes mejor rendimiento." /></h3>
                   <MatrixTable rows={matrixRows} cols={matrixCols} cells={matrixCells} />
                 </Card>
               )}
 
               <div className="grid md:grid-cols-2 gap-6">
               {isVisible('sessions') && (
-                <RankedTableCard title="Rendimiento por sesión" items={sessionItems} />
+                <RankedTableCard title="Rendimiento por sesión" info="Compara tu rendimiento entre las distintas sesiones de mercado (Asia, Londres, Nueva York, solapamientos)." items={sessionItems} />
               )}
 
               {isVisible('longShort') && (
                 <Card className="p-6">
-                  <h3 className="serif text-xl font-semibold mb-6">Long vs Short por sesión</h3>
+                  <h3 className="serif text-xl font-semibold mb-6 flex items-center">Long vs Short por sesión<InfoTooltip text="Compara tu rendimiento operando en largo frente a en corto, desglosado por cada sesión de mercado." /></h3>
                   {directionBySession.length === 0 ? (
                     <p className="text-sm text-ink-900/40 dark:text-bone-100/40">Aún no hay datos suficientes.</p>
                   ) : (

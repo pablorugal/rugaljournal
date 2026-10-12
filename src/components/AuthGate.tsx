@@ -13,7 +13,7 @@ import StrategiesPage from '../pages/StrategiesPage'
 import WeeklyReviewPage from '../pages/WeeklyReviewPage'
 import MindsetPage from '../pages/MindsetPage'
 import MindsetCalendarPage from '../pages/MindsetCalendarPage'
-import ZenPage from '../pages/ZenPage'
+import RitualPage from '../pages/RitualPage'
 import HabitsPage from '../pages/HabitsPage'
 import ChecklistsPage from '../pages/ChecklistsPage'
 import ImportExportPage from '../pages/ImportExportPage'
@@ -59,7 +59,7 @@ export function AuthGate() {
             <Route path="weekly-review" element={<WeeklyReviewPage />} />
             <Route path="mindset" element={<MindsetPage />} />
             <Route path="mindset-calendar" element={<MindsetCalendarPage />} />
-            <Route path="zen" element={<ZenPage />} />
+            <Route path="ritual" element={<RitualPage />} />
             <Route path="habits" element={<HabitsPage />} />
             <Route path="checklists" element={<ChecklistsPage />} />
             <Route path="import-export" element={<ImportExportPage />} />

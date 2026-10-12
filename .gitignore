@@ -6,3 +6,4 @@ functions/lib/
 *.log
 firebase-debug.log
 firebase-debug.*.log
+.env

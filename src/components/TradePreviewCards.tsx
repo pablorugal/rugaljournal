@@ -1,6 +1,7 @@
 // src/components/TradePreviewCards.tsx
 import { X, Sparkles, CheckCircle2, Wallet } from 'lucide-react'
 import { fmt } from '../utils'
+import { calculateAutoRisk } from '../calculations'
 import { Card } from './ui'
 import { nowDatetimeLocal } from '../lib/aiTradeExtractor'
 import type { ExtractedTradeData } from '../lib/aiTradeExtractor'
@@ -19,6 +20,7 @@ export interface PreviewTrade {
   pnl: number
   stop_loss?: number
   take_profit?: number
+  risk_amount?: number
   entry_datetime: string
   exit_datetime: string
   notes: string
@@ -37,6 +39,13 @@ export function buildPreviewTrade(t: ExtractedTradeData, accountId: string): Pre
     pnl: t.pnl ?? 0,
     stop_loss: t.stop_loss,
     take_profit: t.take_profit,
+    risk_amount: calculateAutoRisk({
+      instrument_type: t.instrument_type || 'Forex',
+      symbol: t.symbol || '',
+      entry_price: t.entry_price ?? 0,
+      stop_loss: t.stop_loss ?? 0,
+      position_size: t.position_size ?? 0,
+    }) || undefined,
     entry_datetime: t.entry_datetime || nowDatetimeLocal(),
     exit_datetime: t.exit_datetime || nowDatetimeLocal(),
     notes: t.notes || '',
@@ -158,6 +167,11 @@ export function TradePreviewCards({
                 <div>
                   <label className="text-[10px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40">Take Profit</label>
                   <input type="number" step="0.00001" value={p.take_profit ?? ''} onChange={e => onUpdate(p.tempId, { take_profit: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full mt-1 bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wide text-ink-900/40 dark:text-bone-100/40">Riesgo $</label>
+                  <input type="number" step="0.01" value={p.risk_amount ?? ''} onChange={e => onUpdate(p.tempId, { risk_amount: e.target.value ? Number(e.target.value) : undefined })}
                     className="w-full mt-1 bg-bone-50 dark:bg-ink-700 border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-sm" />
                 </div>
               </div>

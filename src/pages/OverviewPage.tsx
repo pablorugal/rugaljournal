@@ -17,6 +17,7 @@ import { EconomicCalendarWidget } from '../components/EconomicCalendarWidget'
 import { AccountGroupDropdown, Dropdown, type AccountGroupValue } from '../components/Filters'
 import { TradeForm } from '../components/TradeForm'
 import { ConfidenceTooltip } from '../components/ConfidenceBadge'
+import { InfoTooltip } from '../components/InfoTooltip'
 import {
   useNovaInsights,
   getConfidenceLevel,
@@ -280,7 +281,7 @@ export default function OverviewPage() {
         <Card className="xl:col-span-2 p-6">
           <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
             <div>
-              <p className={EYEBROW}>Equity Curve</p>
+              <p className={`${EYEBROW} flex items-center`}>Equity Curve<InfoTooltip text="Evolución de tu balance de cuenta a lo largo del tiempo, mostrando el equity actual, tu mejor día y tu peor día." /></p>
               <h3 className="text-2xl font-bold tracking-tight tabular-nums mt-1">{fmt(metrics.currentEquity)}</h3>
             </div>
             <div className="flex gap-4 text-xs">
@@ -334,9 +335,7 @@ export default function OverviewPage() {
 
         {/* Performance Score — con badges Nova */}
         <Card className="p-6 flex flex-col items-center">
-          <p className={`${EYEBROW} self-start mb-2`}>
-            Performance Score
-          </p>
+          <p className={`${EYEBROW} self-start mb-2 flex items-center`}>Performance Score<InfoTooltip text="Resumen de tu nivel de trader calculado por Nova combinando Win Rate, Profit Factor y Consistencia. Puedes ver el desglose completo en Analítica." /></p>
           <Gauge score={score} />
           <NovaRecalcButton />
           <NovaBadgePanel />

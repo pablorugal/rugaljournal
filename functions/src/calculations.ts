@@ -63,6 +63,33 @@ export function calculateAutoPnl(params: {
   return +(diff * position_size).toFixed(2);
 }
 
+/**
+ * Calcula el riesgo en $ de una operacion a partir de la distancia entre el
+ * precio de entrada y el Stop Loss. Para Futuros usa el multiplicador por
+ * punto del simbolo (distingue automaticamente micros de minis, ej. MNQ=$2
+ * vs NQ=$20, via getContractMultiplier). Devuelve 0 si faltan datos.
+ */
+export function calculateAutoRisk(params: {
+  instrument_type: InstrumentType
+  symbol: string
+  entry_price: number
+  stop_loss: number
+  position_size: number
+}): number {
+  const {instrument_type, symbol, entry_price, stop_loss, position_size} = params;
+  if (!entry_price || !stop_loss || !position_size) return 0;
+  const diff = Math.abs(entry_price - stop_loss);
+
+  if (instrument_type === "Futuros") {
+    const mult = getContractMultiplier(symbol);
+    return +(diff * mult * position_size).toFixed(2);
+  }
+  if (instrument_type === "Forex") {
+    return +(diff * position_size * 100000).toFixed(2);
+  }
+  return +(diff * position_size).toFixed(2);
+}
+
 /* ==================== MÉTRICAS GENERALES ==================== */
 export function computeMetrics(trades: Trade[], settings: UserSettings) {
   if (trades.length === 0) {

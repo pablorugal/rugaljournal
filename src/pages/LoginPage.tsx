@@ -3,11 +3,7 @@ import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useAuth } from '../contexts'
-import '../landing/landing.css'
-
-const fieldCls =
-  'l-input w-full rounded-xl border border-[#2A2620] bg-[#0B0A08] px-4 py-3 text-sm text-[#F5F1E8] placeholder:text-[#A8A196]/60 focus:border-[#F5A524] focus:outline-none'
-const labelCls = 'mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-[#A8A196]'
+import { Card, Field, inputCls } from '../components/ui'
 
 export default function LoginPage() {
   const { login, register } = useAuth()
@@ -43,85 +39,85 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="landing relative flex min-h-screen items-center justify-center px-4 py-16">
-      <div className="landing-glow pointer-events-none absolute left-1/2 top-1/4 h-[420px] w-[820px] max-w-full -translate-x-1/2" />
-
-      <Link
-        to="/"
-        className="absolute left-6 top-6 inline-flex items-center gap-2 text-sm font-medium text-[#A8A196] transition hover:text-[#F5F1E8]"
-      >
-        <ArrowLeft size={16} />
-        Volver
-      </Link>
-
-      <div className="relative w-full max-w-sm">
-        <Link to="/" className="mb-8 flex flex-col items-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F5A524] text-2xl font-extrabold text-[#0B0A08]">
-            T
-          </span>
-          <span className="mt-3 text-2xl font-extrabold tracking-tight">
-            Tu<span className="text-[#F5A524]">Journal</span>
-          </span>
-          <span className="landing-mono mt-1 text-[11px] uppercase tracking-[0.2em] text-[#A8A196]">
-            Diario de trading con IA
-          </span>
+    <div className="dark">
+      <div className="app-bg relative flex min-h-screen items-center justify-center bg-ink-900 px-4 py-16">
+        <Link
+          to="/"
+          className="absolute left-6 top-6 inline-flex items-center gap-2 text-sm font-medium text-bone-100/50 transition hover:text-bone-100"
+        >
+          <ArrowLeft size={16} />
+          Volver
         </Link>
 
-        <div className="rounded-2xl border border-[#2A2620] bg-[#14120F] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.6)] md:p-8">
-          <h1 className="text-xl font-extrabold tracking-tight">
-            {mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
-          </h1>
-          <p className="mb-6 mt-1 text-sm text-[#A8A196]">
-            {mode === 'login' ? 'Accede a tu diario de trading.' : 'Regístrate para empezar a usar TuJournal.'}
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="login-email" className={labelCls}>Email</label>
-              <input
-                id="login-email"
-                type="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="tucorreo@ejemplo.com"
-                className={fieldCls}
-              />
+        <div className="relative w-full max-w-sm">
+          <Link to="/" className="mb-8 flex flex-col items-center">
+            <div className="tj-logo w-14 h-14 rounded-2xl bg-gradient-to-br from-accent-light to-accent flex items-center justify-center shrink-0">
+              <svg width="28" height="28" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 50 L36 24 L36 50" stroke="#17181B" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <line x1="22" y1="24" x2="50" y2="24" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="40" y1="50" x2="52" y2="38" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="46" y1="38" x2="52" y2="38" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+                <line x1="52" y1="38" x2="52" y2="44" stroke="#17181B" strokeWidth="6" strokeLinecap="round" />
+              </svg>
             </div>
-            <div>
-              <label htmlFor="login-password" className={labelCls}>Contraseña</label>
-              <input
-                id="login-password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={fieldCls}
-              />
-            </div>
-            {error && <p className="text-xs text-[#FFD27A]">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#F5A524] px-6 py-3 text-sm font-bold uppercase tracking-wide text-[#0B0A08] shadow-[0_0_30px_rgba(245,165,36,0.35)] transition hover:bg-[#FFD27A] disabled:opacity-60"
-            >
-              {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
-              {!loading && <ArrowRight size={16} />}
-            </button>
-          </form>
+            <span className="mt-4 text-2xl font-bold tracking-tight text-bone-100">Tradelic</span>
+            <span className="font-mono mt-1 text-[11px] uppercase tracking-[0.2em] text-bone-100/40">
+              Diario de trading con IA
+            </span>
+          </Link>
 
-          <p className="mt-6 text-center text-xs text-[#A8A196]">
-            {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-            <button
-              type="button"
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}
-              className="font-semibold text-[#F5A524] transition hover:text-[#FFD27A]"
-            >
-              {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
-            </button>
-          </p>
+          <Card className="p-6 md:p-8">
+            <h1 className="serif text-xl font-semibold text-bone-100">
+              {mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
+            </h1>
+            <p className="mb-6 mt-1 text-sm text-bone-100/50">
+              {mode === 'login' ? 'Accede a tu diario de trading.' : 'Regístrate para empezar a usar Tradelic.'}
+            </p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Field label="Email">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="tucorreo@ejemplo.com"
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Contraseña">
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputCls}
+                />
+              </Field>
+              {error && <p className="text-xs text-loss">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white shadow-soft hover:bg-accent-light disabled:opacity-60"
+              >
+                {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+                {!loading && <ArrowRight size={16} />}
+              </button>
+            </form>
+
+            <p className="mt-6 text-center text-xs text-bone-100/50">
+              {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+              <button
+                type="button"
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}
+                className="font-semibold text-accent hover:text-accent-light"
+              >
+                {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
+              </button>
+            </p>
+          </Card>
         </div>
       </div>
     </div>
